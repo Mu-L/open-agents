@@ -13,14 +13,20 @@ function isAnthropicModel(model: LanguageModel): boolean {
 }
 
 /**
- * Adds cache control to the last message in the array for optimal Anthropic cache hits.
+ * Adds provider-specific cache control options to messages for optimal caching.
  *
- * Per Anthropic's docs: "Mark the final block of the final message with cache_control
- * so the conversation can be incrementally cached. The system will automatically
- * lookup and use the longest previously cached sequence of blocks (up to 20 blocks)."
+ * Currently supports Anthropic models with ephemeral cache control. This pattern
+ * can be extended to support other providers with different caching strategies.
  *
- * This means you only need to mark the last message - not every message.
- * Only applies cache control when using an Anthropic model.
+ * For Anthropic: marks the last message with `cacheControl: { type: "ephemeral" }`
+ * per their docs - "Mark the final block of the final message with cache_control
+ * so the conversation can be incrementally cached."
+ *
+ * For non-Anthropic models, messages are returned unchanged.
+ *
+ * @param messages - The array of messages to process
+ * @param model - The language model (used to determine provider-specific behavior)
+ * @param providerOptions - Custom provider options (defaults to Anthropic ephemeral cache)
  *
  * @example
  * ```ts
