@@ -11,19 +11,25 @@ function isPathWithinDirectory(filePath: string, directory: string): boolean {
 }
 
 export const readFileTool = tool({
-  description: `Read a file from the filesystem or scratchpad.
+  description: `Read a file from the filesystem.
 
 USAGE:
-- The path must be a FULL absolute path (e.g., /Users/username/project/file.ts), not just /file.ts
-- Paths starting with /scratchpad/ access the scratchpad
-- By default reads up to 2000 lines from the beginning
-- Use offset and limit for long files
-- Results include line numbers starting at 1
+- The path should be a FULL absolute path (e.g., /Users/username/project/file.ts), not just /file.ts
+- If a root-like path (e.g., /README.md) does not exist on disk, it may be resolved relative to the workspace root
+- Paths starting with /scratchpad/ are NOT read by this tool - scratchpad content is injected via system context
+- By default reads up to 2000 lines starting from line 1
+- Use offset and limit for long files (both are line-based, 1-indexed)
+- Results include line numbers starting at 1 in "N: content" format
 
 IMPORTANT:
-- Always read a file before editing it
-- You can call multiple Read tools in parallel to speculatively read multiple files
-- For directories, use the glob or bash ls command instead`,
+- Always read a file at least once before editing it with the edit/write tools
+- This tool can only read files, not directories - attempting to read a directory returns an error
+- Access is restricted to files inside the current working directory; paths outside will be rejected
+- You can call multiple reads in parallel to speculatively load several files
+
+EXAMPLES:
+- Read an entire file: filePath: "/Users/username/project/src/index.ts"
+- Read a slice of a long file: filePath: "/Users/username/project/logs/app.log", offset: 500, limit: 200`,
   inputSchema: z.object({
     filePath: z
       .string()

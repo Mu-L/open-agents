@@ -4,15 +4,29 @@ import { searchMemory, getRecentMemories } from "../../state/memory-store";
 import type { AgentContext } from "../../types";
 
 export const memoryRecallTool = tool({
-  description: `Retrieve information from long-term memory.
+  description: `Retrieve information from long-term memory for the current workspace/project.
 
 WHEN TO USE:
-- Starting a new conversation in a familiar project
-- Looking for previously learned patterns or solutions
-- Recalling user preferences or conventions
-- Finding context from past interactions
+- At the start of a session to recall prior decisions, conventions, or preferences
+- Before implementing a feature to check for relevant past patterns or solutions
+- When you suspect a similar problem has been solved previously
+- To recall user-specific preferences or project-specific conventions
 
-You can search by text query, filter by tags, or get recent memories.`,
+USAGE:
+- You can search by free-text query, filter by tags, or fetch recent entries:
+  - Provide query to search memory content text
+  - Provide tags to filter by tags (matches if ANY tag matches)
+  - Provide neither query nor tags to retrieve the most recent memories
+- Use limit to bound the number of results (default: 10)
+
+IMPORTANT:
+- Memories are scoped to the current working directory/project
+- If no entries match the query/tags, the tool returns a success message with an empty memories list
+- Use this tool proactively when starting new tasks in a familiar project
+
+EXAMPLES:
+- Recall previous auth decisions: query: "authentication", tags: ["auth"], limit: 5
+- Fetch the most recent memories: (no query, no tags, optional limit: 10)`,
   inputSchema: z.object({
     query: z
       .string()

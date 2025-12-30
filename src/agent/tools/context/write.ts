@@ -14,16 +14,31 @@ export const writeFileTool = tool({
   needsApproval: true,
   description: `Write content to a file on the filesystem.
 
+WHEN TO USE:
+- Creating a new file that does not yet exist
+- Completely replacing the contents of an existing file after you've read it
+- Generating code or configuration as part of an implementation task
+
+WHEN NOT TO USE:
+- Small or localized changes to an existing file (prefer editFileTool instead)
+- Reading files (use readFileTool instead)
+- Searching (use grepTool or globTool instead)
+
 USAGE:
-- The path must be an absolute path
-- This will overwrite existing files
-- Parent directories will be created if they don't exist
+- The path must be an absolute path within the workspace
+- This will OVERWRITE existing files entirely
+- Parent directories are created automatically if they do not exist
 
 IMPORTANT:
-- ALWAYS read a file first before overwriting it
-- Prefer editing existing files over creating new ones
-- NEVER create documentation files unless explicitly requested
-- Do not write files containing secrets or credentials`,
+- ALWAYS read an existing file with readFileTool before overwriting it
+- Prefer editing existing files over creating new ones unless a new file is explicitly needed
+- NEVER proactively create documentation files (e.g., *.md) unless the user explicitly requests them
+- Do not write files that contain secrets or credentials (API keys, passwords, .env, etc.)
+- Access is restricted to paths inside the working directory; paths outside will be rejected
+
+EXAMPLES:
+- Create a new test file: filePath: "/Users/username/project/src/user.test.ts", content: "<full file contents>"
+- Replace a script after reading it: filePath: "/Users/username/project/scripts/build.sh", content: "<entire updated script>"`,
   inputSchema: z.object({
     filePath: z.string().describe("Absolute path to the file to write"),
     content: z.string().describe("Content to write to the file"),
@@ -70,16 +85,31 @@ export const editFileTool = tool({
   needsApproval: true,
   description: `Perform exact string replacement in a file.
 
+WHEN TO USE:
+- Making small, precise edits to an existing file you have already read
+- Renaming a variable or identifier consistently within a single file
+- Changing a specific block of code or configuration exactly as seen in the read output
+
+WHEN NOT TO USE:
+- Creating new files (use writeFileTool instead)
+- Large structural rewrites where it's simpler to rewrite the entire file (use writeFileTool)
+- Multi-file refactors (use grepTool + multiple edits, or taskTool for larger jobs)
+
 USAGE:
-- You must read the file first before editing
-- old_string must match exactly (including whitespace/indentation)
-- old_string must be unique in the file unless using replace_all
-- Use replace_all to change all occurrences (e.g., renaming a variable)
+- You must read the file first with readFileTool in this conversation
+- Provide oldString as the EXACT text to replace, including whitespace and indentation
+- By default, oldString must be UNIQUE in the file; otherwise the edit will fail
+- Use replaceAll: true to change ALL occurrences of oldString in the file (e.g., for a rename)
 
 IMPORTANT:
-- Preserve exact indentation from the file
-- The edit will FAIL if old_string is not unique (provide more context to make it unique)
-- Never include line numbers in old_string or new_string`,
+- Preserve exact indentation and spacing from the file's content as returned by readFileTool
+- Never include line numbers or the "N: " line prefixes from the read output in oldString or newString
+- If oldString appears multiple times and replaceAll is false, the tool will FAIL with an error and occurrence count
+- Access is restricted to paths inside the working directory; paths outside will be rejected
+
+EXAMPLES:
+- Replace a single function call: filePath: "/Users/username/project/src/auth.ts", oldString: "login(user, password)", newString: "loginWithAudit(user, password)"
+- Rename a variable throughout a file: filePath: "/Users/username/project/src/api.ts", oldString: "oldApiClient", newString: "newApiClient", replaceAll: true`,
   inputSchema: z.object({
     filePath: z.string().describe("Absolute path to the file to edit"),
     oldString: z.string().describe("The exact text to replace"),

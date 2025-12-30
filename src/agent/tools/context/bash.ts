@@ -81,24 +81,42 @@ async function executeCommand(
 
 export const bashTool = tool({
   needsApproval: true,
-  description: `Execute a bash command in the user's shell.
+  description: `Execute a bash command in the user's shell (non-interactive).
+
+WHEN TO USE:
+- Running existing project commands (build, test, lint, typecheck)
+- Using read-only CLI tools (git status, git diff, ls, etc.)
+- Invoking language/package managers (npm, pnpm, yarn, pip, go, etc.) as part of the task
+
+WHEN NOT TO USE:
+- Reading files (use readFileTool instead)
+- Editing or creating files (use editFileTool or writeFileTool instead)
+- Searching code or text (use grepTool and/or globTool instead)
+- Interactive commands (shells, editors, REPLs) or long-lived daemons
 
 USAGE:
-- Commands timeout after 2 minutes
-- Output over 50000 characters is truncated
-- Use cwd parameter to run in a specific directory
+- Runs bash -c "<command>" in a non-interactive shell (no TTY/PTY)
+- Commands automatically timeout after ~2 minutes
+- Combined stdout/stderr output is truncated after ~50,000 characters
+- Use cwd to run in a specific directory; otherwise the current working directory is used
 
 DO NOT USE FOR:
-- File reading (use Read tool instead)
-- File editing (use Edit tool instead)
-- File creation (use Write tool instead)
-- Searching (use Grep tool instead)
+- File reading (cat, head, tail) - use readFileTool
+- File editing (sed, awk, editors) - use editFileTool / writeFileTool
+- File creation (touch, redirections like >, >>) - use writeFileTool
+- Code search (grep, rg, ag) - use grepTool
 
 IMPORTANT:
-- Never chain commands with ; or && - make separate tool calls
-- Never use interactive commands (vim, nano, etc.)
-- Never use background processes with &
-- Always quote file paths with spaces`,
+- Never chain commands with ';' or '&&' - use separate tool calls for each logical step
+- Never use interactive commands (vim, nano, top, bash, ssh, etc.)
+- Never start background processes with '&'
+- Always quote file paths that may contain spaces
+- The working directory (cwd) must be within the main working directory; paths outside are rejected
+
+EXAMPLES:
+- Run the test suite: command: "npm test", cwd: "/Users/username/project"
+- Check git status: command: "git status --short"
+- List files in src: command: "ls -la", cwd: "/Users/username/project/src"`,
   inputSchema: z.object({
     command: z.string().describe("The bash command to execute"),
     cwd: z

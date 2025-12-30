@@ -84,18 +84,34 @@ async function walkDirectory(
 }
 
 export const grepTool = tool({
-  description: `Search for patterns in files using regex.
+  description: `Search for patterns in files using JavaScript regular expressions.
+
+WHEN TO USE:
+- Finding where a function, variable, or string literal is used
+- Locating configuration keys, routes, or error messages across files
+- Narrowing down which files to read or edit
+
+WHEN NOT TO USE:
+- Simple filename-only searches (use globTool instead)
+- Complex, multi-round codebase exploration (use taskTool with detailed instructions)
+- Directory listings, builds, or other shell tasks (use bashTool instead)
 
 USAGE:
-- Uses JavaScript regex syntax
-- Search a specific file or directory
-- Filter by glob pattern (e.g., "*.ts", "*.js")
-- Results are limited to 100 matches total, 10 per file
+- Uses JavaScript RegExp syntax (e.g., "log.*Error", "function\\s+\\w+")
+- Search a specific file OR an entire directory via the path parameter
+- Optionally filter files with glob (e.g., "*.ts", "*.test.js")
+- Matches are SINGLE-LINE: patterns do not span across newline characters
+- Results are limited to 100 matches total, with up to 10 matches per file; each match line is truncated to 200 characters
 
 IMPORTANT:
-- ALWAYS use this tool for search tasks instead of bash grep/rg
-- Use caseSensitive: false for case-insensitive search
-- For complex multi-step searches, consider using the Task tool`,
+- ALWAYS use this tool for code/content searches instead of running grep/rg via bashTool
+- Use caseSensitive: false for case-insensitive searches
+- Hidden files and node_modules are skipped when searching directories
+- Access is restricted to files under the current working directory; paths outside will be rejected
+
+EXAMPLES:
+- Find all TODO comments in TypeScript files: pattern: "TODO", path: "/Users/username/project", glob: "*.ts"
+- Find all references to a function (case-insensitive): pattern: "handleRequest", path: "/Users/username/project/src", caseSensitive: false`,
   inputSchema: z.object({
     pattern: z.string().describe("Regex pattern to search for"),
     path: z

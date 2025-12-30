@@ -98,15 +98,32 @@ async function findFiles(
 export const globTool = tool({
   description: `Find files matching a glob pattern.
 
+WHEN TO USE:
+- Locating files by extension or naming pattern (e.g., all *.test.ts files)
+- Discovering where components, migrations, or configs live
+- Getting a quick list of recently modified files of a given type
+
+WHEN NOT TO USE:
+- Searching inside file contents (use grepTool instead)
+- Reading file contents (use readFileTool instead)
+- Arbitrary directory listings (bashTool with ls may be more appropriate)
+
 USAGE:
 - Supports patterns like "**/*.ts", "src/**/*.js", "*.json"
-- Returns files sorted by modification time (newest first)
-- Skips hidden files and node_modules
+- Returns FILES (not directories) sorted by modification time (newest first)
+- Skips hidden files (names starting with ".") and node_modules
+- If path is omitted, the current working directory is used as the base
+- Results are limited by the limit parameter (default: 100)
+
+IMPORTANT:
+- Access is restricted to paths under the working directory; base paths outside will be rejected
+- Patterns are matched primarily on the final path segment (file name), with basic "*" and "**" support
+- Use this to narrow down candidate files before calling readFileTool or grepTool
 
 EXAMPLES:
-- "**/*.ts" - All TypeScript files
-- "src/**/*.test.ts" - All test files under src
-- "*.json" - JSON files in current directory`,
+- All TypeScript files in the project: pattern: "**/*.ts"
+- All Jest tests under src: pattern: "src/**/*.test.ts"
+- Recent JSON config files: pattern: "*.json", path: "/Users/username/project/config", limit: 20`,
   inputSchema: z.object({
     pattern: z.string().describe("Glob pattern to match (e.g., '**/*.ts')"),
     path: z
