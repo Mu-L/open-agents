@@ -1,21 +1,6 @@
-import { tool, ToolLoopAgent, stepCountIs, readUIMessageStream } from "ai";
-import type { UIMessage } from "ai";
+import { tool, readUIMessageStream } from "ai";
 import { z } from "zod";
-import { readFileTool } from "../context/read";
-import { writeFileTool, editFileTool } from "../context/write";
-import { grepTool } from "../context/grep";
-import { globTool } from "../context/glob";
-import { bashTool } from "../context/bash";
-
-const SUBAGENT_SYSTEM_PROMPT = `You are a task executor - a focused subagent that completes specific, well-defined tasks.
-
-IMPORTANT:
-- You work autonomously without asking follow-up questions
-- Complete the task fully before returning
-- Return a concise summary of what you accomplished
-- If you encounter blockers, document them in your response
-
-You have access to file operations and bash commands. Use them to complete your task.`;
+import { subagent } from "./subagent";
 
 export const taskTool = tool({
   description: `Spawn an ephemeral subagent to perform a complex, multi-step implementation task.
@@ -73,30 +58,9 @@ EXAMPLES:
   execute: async function* ({ task, instructions, workingDirectory }) {
     const cwd = workingDirectory ?? process.cwd();
 
-    const subagent = new ToolLoopAgent({
-      model: "anthropic/claude-sonnet-4-20250514",
-      instructions: SUBAGENT_SYSTEM_PROMPT,
-      tools: {
-        read: readFileTool,
-        write: writeFileTool,
-        edit: editFileTool,
-        grep: grepTool,
-        glob: globTool,
-        bash: bashTool,
-      },
-      stopWhen: stepCountIs(30),
-    });
-
     const result = await subagent.stream({
-      prompt: `Working directory: ${cwd}
-
-## Task
-${task}
-
-## Instructions
-${instructions}
-
-Complete this task and provide a summary of what you accomplished.`,
+      prompt: "Complete this task and provide a summary of what you accomplished.",
+      options: { task, cwd, instructions },
     });
 
     for await (const message of readUIMessageStream({
