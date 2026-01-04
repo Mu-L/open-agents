@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import * as path from "path";
 import { isPathWithinDirectory, getSandbox, sharedContext } from "../../utils";
+import { matchPathGlobRule } from "../../utils/session-rules";
 
 const writeInputSchema = z.object({
   filePath: z.string().describe("Absolute path to the file to write"),
@@ -59,6 +60,19 @@ function createWriteApprovalFn(options?: WriteToolOptions): WriteApprovalFn {
     if (sharedContext.mode === "background") {
       return false;
     }
+    // Check session rules for path-glob match
+    for (const rule of sharedContext.sessionRules) {
+      if (
+        matchPathGlobRule(
+          rule,
+          args.filePath,
+          "write",
+          sharedContext.workingDirectory,
+        )
+      ) {
+        return false; // Auto-approve
+      }
+    }
     // Otherwise use the configured approval setting
     if (typeof options?.needsApproval === "function") {
       return options.needsApproval(args);
@@ -81,6 +95,19 @@ function createEditApprovalFn(options?: EditToolOptions): EditApprovalFn {
     // In background mode, auto-approve all operations within working directory
     if (sharedContext.mode === "background") {
       return false;
+    }
+    // Check session rules for path-glob match
+    for (const rule of sharedContext.sessionRules) {
+      if (
+        matchPathGlobRule(
+          rule,
+          args.filePath,
+          "edit",
+          sharedContext.workingDirectory,
+        )
+      ) {
+        return false; // Auto-approve
+      }
     }
     // Otherwise use the configured approval setting
     if (typeof options?.needsApproval === "function") {
