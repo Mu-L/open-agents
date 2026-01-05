@@ -2,7 +2,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import * as path from "path";
 import type { Sandbox } from "../../sandbox";
-import { isPathWithinDirectory, getSandbox, sharedContext, pathMatchesGlob } from "../../utils";
+import { isPathWithinDirectory, getSandbox, pathMatchesGlob, getApprovalContext } from "../../utils";
+import type { ApprovalRule } from "../../types";
 
 interface GrepMatch {
   file: string;
@@ -99,14 +100,18 @@ type GrepInput = z.infer<typeof grepInputSchema>;
 /**
  * Check if a path matches any path-glob approval rules for grep operations.
  */
-function pathMatchesApprovalRule(searchPath: string): boolean {
+function pathMatchesApprovalRule(
+  searchPath: string,
+  workingDirectory: string,
+  approvalRules: ApprovalRule[]
+): boolean {
   const absolutePath = path.isAbsolute(searchPath)
     ? searchPath
-    : path.resolve(sharedContext.workingDirectory, searchPath);
+    : path.resolve(workingDirectory, searchPath);
 
-  for (const rule of sharedContext.approvalRules) {
+  for (const rule of approvalRules) {
     if (rule.type === "path-glob" && rule.tool === "grep") {
-      if (pathMatchesGlob(absolutePath, rule.glob, sharedContext.workingDirectory)) {
+      if (pathMatchesGlob(absolutePath, rule.glob, workingDirectory)) {
         return true;
       }
     }
@@ -114,30 +119,22 @@ function pathMatchesApprovalRule(searchPath: string): boolean {
   return false;
 }
 
-/**
- * Check if a grep operation needs approval based on the search path.
- * Returns true if the path is outside the working directory and no approval rule matches.
- */
-function pathNeedsApproval(args: GrepInput): boolean {
-  const absolutePath = path.isAbsolute(args.path)
-    ? args.path
-    : path.resolve(sharedContext.workingDirectory, args.path);
-
-  // Check if within working directory - no approval needed
-  if (isPathWithinDirectory(absolutePath, sharedContext.workingDirectory)) {
-    return false;
-  }
-
-  // Outside working directory - check if a rule matches
-  if (pathMatchesApprovalRule(args.path)) {
-    return false;
-  }
-
-  return true;
-}
-
 export const grepTool = () => tool({
-  needsApproval: pathNeedsApproval,
+  needsApproval: (args, { experimental_context }) => {
+    const ctx = getApprovalContext(experimental_context);
+    const absolutePath = path.isAbsolute(args.path)
+      ? args.path
+      : path.resolve(ctx.workingDirectory, args.path);
+    // Check if within working directory - no approval needed
+    if (isPathWithinDirectory(absolutePath, ctx.workingDirectory)) {
+      return false;
+    }
+    // Outside working directory - check if a rule matches
+    if (pathMatchesApprovalRule(args.path, ctx.workingDirectory, ctx.approvalRules)) {
+      return false;
+    }
+    return true;
+  },
   description: `Search for patterns in files using JavaScript regular expressions.
 
 WHEN TO USE:
