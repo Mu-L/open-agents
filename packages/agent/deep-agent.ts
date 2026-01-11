@@ -1,4 +1,4 @@
-import { ToolLoopAgent, stepCountIs, type TypedToolResult } from "ai";
+import { ToolLoopAgent, stepCountIs, type TypedToolResult, gateway } from "ai";
 import { z } from "zod";
 import {
   todoWriteTool,
@@ -14,7 +14,6 @@ import { buildSystemPrompt } from "./system-prompt";
 import type { TodoItem, AgentMode, ApprovalRule } from "./types";
 import { approvalRuleSchema } from "./types";
 import { addCacheControl, compactContext } from "./context-management";
-import { gateway } from "./models";
 import { createLocalSandbox, type Sandbox } from "@open-harness/sandbox";
 
 const agentModeSchema = z.enum(["interactive", "background"]);
@@ -31,9 +30,7 @@ const callOptionsSchema = z.object({
 
 export type DeepAgentCallOptions = z.infer<typeof callOptionsSchema>;
 
-const model = gateway("anthropic/claude-haiku-4.5", {
-  devtools: true,
-});
+const model = gateway("anthropic/claude-haiku-4.5");
 
 export const deepAgentModelId = model.modelId;
 
@@ -89,7 +86,7 @@ export const deepAgent = new ToolLoopAgent({
   },
   // Sandbox lifecycle is managed by the consumer, not the agent.
   // Consumers should call sandbox.stop() when they're done with the sandbox.
-  onFinish: async () => {},
+  onFinish: async () => { },
 });
 
 export function extractTodosFromStep(
