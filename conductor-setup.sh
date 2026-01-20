@@ -1,5 +1,10 @@
-# Install dependencies
-bun install
+#!/bin/zsh
 
-# Copy .env file
-cp $CONDUCTOR_ROOT_PATH/.env .env
+bun install
+cp "$CONDUCTOR_ROOT_PATH/apps/cli/.env" apps/cli/.env
+cp "$CONDUCTOR_ROOT_PATH/apps/web/.env" apps/web/.env
+
+vc env pull "$CONDUCTOR_ROOT_PATH/.env.local" --cwd "$CONDUCTOR_ROOT_PATH"
+grep "^VERCEL_OIDC_TOKEN=" "$CONDUCTOR_ROOT_PATH/.env.local" >> apps/cli/.env
+grep "^VERCEL_OIDC_TOKEN=" "$CONDUCTOR_ROOT_PATH/.env.local" >> apps/web/.env
+grep "^BLOB_READ_WRITE_TOKEN=" "$CONDUCTOR_ROOT_PATH/.env.local" >> apps/web/.env
