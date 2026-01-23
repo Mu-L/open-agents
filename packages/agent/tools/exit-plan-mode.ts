@@ -68,7 +68,8 @@ IMPORTANT:
 
       return {
         success: true,
-        message: "Requesting approval to exit plan mode and proceed.",
+        message:
+          "The user has approved your plan. Start implementing it now, following the steps outlined in your plan.",
         plan,
         planFilePath,
         allowedPrompts: allowedPrompts ?? [],
