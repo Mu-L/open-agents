@@ -20,6 +20,7 @@ import type {
 import type { Settings } from "./lib/settings";
 import { AVAILABLE_MODELS, type ModelInfo } from "./lib/models";
 import { getContextLimit } from "@open-harness/agent";
+import { createPlanFile } from "@open-harness/shared";
 
 export type PanelState =
   | { type: "none" }
@@ -326,11 +327,22 @@ export function ChatProvider({
   );
 
   const cyclePermissionMode = useCallback(() => {
-    setPermissionModeState((prev) => {
-      const currentIndex = PERMISSION_MODES.indexOf(prev);
-      const nextIndex = (currentIndex + 1) % PERMISSION_MODES.length;
-      return PERMISSION_MODES[nextIndex] ?? "default";
-    });
+    const prev = permissionModeRef.current;
+    const currentIndex = PERMISSION_MODES.indexOf(prev);
+    const nextIndex = (currentIndex + 1) % PERMISSION_MODES.length;
+    const nextMode = PERMISSION_MODES[nextIndex] ?? "default";
+
+    // If entering plan mode, create plan file
+    if (nextMode === "plan") {
+      createPlanFile().then(({ planFilePath }) => {
+        setPlanFilePath(planFilePath);
+      });
+    } else if (prev === "plan") {
+      // Exiting plan mode, clear plan file path
+      setPlanFilePath(null);
+    }
+
+    setPermissionModeState(nextMode);
   }, []);
 
   const updateSettings = useCallback(

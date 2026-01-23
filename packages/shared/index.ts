@@ -49,3 +49,11 @@ export {
   toRelativePath,
   formatTokens,
 } from "./lib/tool-state";
+
+// Lib - Plan utilities
+export {
+  generatePlanName,
+  createPlanFile,
+  CONFIG_DIR,
+  PLANS_DIR,
+} from "./lib/plan-utils";

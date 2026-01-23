@@ -1,103 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { mkdir } from "node:fs/promises";
-
-// Word lists for generating random plan names
-const ADJECTIVES = [
-  "giggling",
-  "dancing",
-  "sleeping",
-  "running",
-  "jumping",
-  "singing",
-  "floating",
-  "spinning",
-  "glowing",
-  "buzzing",
-  "flying",
-  "crawling",
-  "bouncing",
-  "whistling",
-  "humming",
-  "drifting",
-  "twirling",
-  "shimmering",
-  "sparkling",
-  "flickering",
-  "swaying",
-  "tumbling",
-  "soaring",
-  "prancing",
-  "skipping",
-];
-
-const COLORS = [
-  "crimson",
-  "azure",
-  "golden",
-  "silver",
-  "coral",
-  "violet",
-  "emerald",
-  "amber",
-  "ivory",
-  "jade",
-  "scarlet",
-  "cobalt",
-  "copper",
-  "indigo",
-  "bronze",
-  "teal",
-  "sage",
-  "rust",
-  "plum",
-  "slate",
-];
-
-const ANIMALS = [
-  "lark",
-  "panda",
-  "otter",
-  "fox",
-  "owl",
-  "tiger",
-  "dolphin",
-  "koala",
-  "penguin",
-  "rabbit",
-  "eagle",
-  "salmon",
-  "turtle",
-  "zebra",
-  "falcon",
-  "badger",
-  "heron",
-  "lynx",
-  "crane",
-  "finch",
-  "lemur",
-  "marmot",
-  "osprey",
-  "wombat",
-  "quail",
-];
-
-function randomElement<T>(array: T[]): T {
-  const index = Math.floor(Math.random() * array.length);
-  return array[index]!;
-}
-
-function generatePlanName(): string {
-  const adjective = randomElement(ADJECTIVES);
-  const color = randomElement(COLORS);
-  const animal = randomElement(ANIMALS);
-  return `${adjective}-${color}-${animal}`;
-}
-
-const CONFIG_DIR = join(homedir(), ".config", "open-harness");
-const PLANS_DIR = join(CONFIG_DIR, "plans");
+import { createPlanFile } from "@open-harness/shared";
 
 // TODO: if anthropic bug still exists, add empty item here
 const enterPlanModeInputSchema = z.object({
@@ -126,12 +29,7 @@ HOW TO EXIT:
 - User will review and approve the plan before you can proceed with implementation`,
     inputSchema: enterPlanModeInputSchema,
     execute: async () => {
-      // Ensure plans directory exists
-      await mkdir(PLANS_DIR, { recursive: true });
-
-      // Generate unique plan name
-      const planName = generatePlanName();
-      const planFilePath = join(PLANS_DIR, `${planName}.md`);
+      const { planFilePath, planName } = await createPlanFile();
 
       return {
         success: true,
