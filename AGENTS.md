@@ -206,3 +206,8 @@ Use `catalog:` for shared external versions:
   }
 }
 ```
+
+## Lessons Learned
+
+- Skill discovery de-duplicates by first-seen name, so project skill directories must be scanned before user-level directories to allow project overrides.
+- The system prompt should list all model-invocable skills (including non-user-invocable ones), and reserve user-invocable filtering for the slash-command UI.

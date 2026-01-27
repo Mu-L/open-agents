@@ -277,7 +277,10 @@ export function ChatProvider({
     [transport],
   );
 
-  const skills = agentOptions.skills ?? [];
+  const skills = useMemo(
+    () => agentOptions.skills ?? [],
+    [agentOptions.skills],
+  );
 
   const state: ChatState = useMemo(
     () => ({

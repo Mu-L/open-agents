@@ -159,12 +159,13 @@ async function main() {
     // Base folder names that can contain skills (in both user home and project)
     const skillBaseFolders = [".claude", ".agents"];
     const skillDirs = [
-      // User-level skills (e.g., ~/.claude/skills, ~/.agents/skills)
-      ...skillBaseFolders.map((folder) => join(homedir(), folder, "skills")),
+      // Project-level skills should override user-level duplicates (first wins).
       // Project-level skills (e.g., .claude/skills, .agents/skills)
       ...skillBaseFolders.map((folder) =>
         join(workingDirectory, folder, "skills"),
       ),
+      // User-level skills (e.g., ~/.claude/skills, ~/.agents/skills)
+      ...skillBaseFolders.map((folder) => join(homedir(), folder, "skills")),
     ];
     const skills = await discoverSkills(sandbox, skillDirs);
 

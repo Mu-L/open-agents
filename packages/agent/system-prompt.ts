@@ -205,17 +205,18 @@ function buildSkillsPrompt(skills: SkillMetadata[]): string {
   if (skills.length === 0) return "";
 
   // Filter to skills the model can actually invoke:
-  // - Must be user-invocable (for slash command display)
   // - Must NOT have model invocation disabled
   const invocableSkills = skills.filter(
-    (s) =>
-      s.options.userInvocable !== false && !s.options.disableModelInvocation,
+    (s) => !s.options.disableModelInvocation,
   );
 
   if (invocableSkills.length === 0) return "";
 
   const skillsList = invocableSkills
-    .map((s) => `- ${s.name}: ${s.description}`)
+    .map((s) => {
+      const suffix = s.options.userInvocable === false ? " (model-only)" : "";
+      return `- ${s.name}: ${s.description}${suffix}`;
+    })
     .join("\n");
 
   return `
@@ -223,6 +224,7 @@ function buildSkillsPrompt(skills: SkillMetadata[]): string {
 - \`skill\` - Execute a skill to extend your capabilities
 - Use the \`skill\` tool to invoke skills when relevant to the user's request
 - When a user references "/<skill-name>" (e.g., "/commit"), invoke the corresponding skill
+- Some skills may be model-only (not user-invocable) and should be invoked automatically when relevant
 
 Available skills:
 ${skillsList}

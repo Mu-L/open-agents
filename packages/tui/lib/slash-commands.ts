@@ -90,7 +90,7 @@ export function getCommandSuggestions(
     }));
 
   // Merge and sort alphabetically by value
-  return [...commandSuggestions, ...skillSuggestions].sort((a, b) =>
+  return [...commandSuggestions, ...skillSuggestions].toSorted((a, b) =>
     a.value.localeCompare(b.value),
   );
 }
