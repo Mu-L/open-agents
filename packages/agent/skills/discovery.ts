@@ -47,21 +47,25 @@ export function parseSkillFrontmatter(
     if (colonIndex === -1) continue;
 
     const key = trimmed.slice(0, colonIndex).trim();
+    // Only split on the first colon to preserve colons in values (e.g., URLs)
     let value: string | boolean = trimmed.slice(colonIndex + 1).trim();
 
-    // Remove quotes if present
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-
-    // Parse booleans
-    if (value === "true") {
-      value = true;
-    } else if (value === "false") {
-      value = false;
+    // Handle quoted strings (including escaped quotes inside)
+    if (value.startsWith('"') && value.endsWith('"')) {
+      const inner = value.slice(1, -1);
+      // Unescape escaped quotes: \" -> "
+      value = inner.replace(/\\"/g, '"');
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      const inner = value.slice(1, -1);
+      // Unescape escaped quotes: \' -> '
+      value = inner.replace(/\\'/g, "'");
+    } else {
+      // Parse booleans only for unquoted values
+      if (value === "true") {
+        value = true;
+      } else if (value === "false") {
+        value = false;
+      }
     }
 
     parsed[key] = value;
@@ -157,11 +161,20 @@ export async function discoverSkills(
 
       const frontmatter = result.data;
 
-      // Skip duplicate skill names (first one wins)
-      if (seenNames.has(frontmatter.name)) {
+      // Skip skills that shadow built-in commands (they would be unreachable)
+      if (BUILTIN_COMMANDS.includes(frontmatter.name.toLowerCase())) {
+        console.warn(
+          `Warning: Skill "${frontmatter.name}" in ${skillDir} shadows built-in command /${frontmatter.name}. Skipping.`,
+        );
         continue;
       }
-      seenNames.add(frontmatter.name);
+
+      // Skip duplicate skill names (first one wins, case-insensitive)
+      const normalizedName = frontmatter.name.toLowerCase();
+      if (seenNames.has(normalizedName)) {
+        continue;
+      }
+      seenNames.add(normalizedName);
 
       skills.push({
         name: frontmatter.name,
@@ -170,15 +183,6 @@ export async function discoverSkills(
         filename: path.basename(skillFile),
         options: frontmatterToOptions(frontmatter),
       });
-    }
-  }
-
-  // Warn about skill names that shadow built-in commands
-  for (const skill of skills) {
-    if (BUILTIN_COMMANDS.includes(skill.name.toLowerCase())) {
-      console.warn(
-        `Warning: Skill "${skill.name}" shadows built-in command /${skill.name}. The skill will be unreachable via slash command.`,
-      );
     }
   }
 

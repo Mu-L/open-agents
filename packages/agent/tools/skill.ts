@@ -23,14 +23,16 @@ function getSkills(experimental_context: unknown): SkillMetadata[] {
 
 /**
  * Check if a skill name matches any skill approval rules.
+ * Comparison is case-insensitive to match slash command behavior.
  */
 function skillMatchesApprovalRule(
   skillName: string,
   approvalRules: ApprovalRule[],
 ): boolean {
+  const normalizedName = skillName.toLowerCase();
   for (const rule of approvalRules) {
     if (rule.type === "skill" && rule.tool === "skill") {
-      if (rule.skillName === skillName) {
+      if (rule.skillName.toLowerCase() === normalizedName) {
         return true;
       }
     }
@@ -87,8 +89,11 @@ Important:
     const sandbox = getSandbox(experimental_context, "skill");
     const skills = getSkills(experimental_context);
 
-    // Find the skill by name
-    const foundSkill = skills.find((s) => s.name === skill);
+    // Find the skill by name (case-insensitive to match slash command behavior)
+    const normalizedSkillName = skill.toLowerCase();
+    const foundSkill = skills.find(
+      (s) => s.name.toLowerCase() === normalizedSkillName,
+    );
     if (!foundSkill) {
       const availableSkills = skills.map((s) => s.name).join(", ");
       return {
