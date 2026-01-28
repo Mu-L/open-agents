@@ -17,6 +17,7 @@ import {
 import { renderMarkdown } from "./lib/markdown";
 import { useChatContext } from "./chat-context";
 import { ToolCall, getToolApprovalInfo } from "./components/tool-call";
+import { toolMatchesApprovalRule } from "./lib/approval";
 import { ApprovalPanel } from "./components/approval-panel";
 import { QuestionPanel } from "./components/question-panel";
 import { SettingsPanel } from "./components/settings-panel";
@@ -659,13 +660,20 @@ function AppContent({ options }: AppProps) {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [resumeError, setResumeError] = useState<string | null>(null);
 
-  const { messages, sendMessage, status, stop, error, addToolOutput } = useChat(
-    {
-      chat,
-      // Throttle streaming updates to reduce terminal flickering
-      experimental_throttle: 80,
-    },
-  );
+  const {
+    messages,
+    sendMessage,
+    status,
+    stop,
+    error,
+    setMessages,
+    addToolOutput,
+    addToolApprovalResponse,
+  } = useChat({
+    chat,
+    // Throttle streaming updates to reduce terminal flickering
+    experimental_throttle: 80,
+  });
 
   const isStreaming = status === "streaming" || status === "submitted";
 
@@ -723,6 +731,38 @@ function AppContent({ options }: AppProps) {
       setWasInterrupted(false);
     }
   }, [isStreaming]);
+
+  // Auto-approve matching tools when pending rules are added
+  // This handles parallel tool calls where user says "don't ask again" on the first one
+  useEffect(() => {
+    if (state.pendingApprovalRules.length === 0) return;
+
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role !== "assistant") return;
+
+    // Find all tools with approval-requested state
+    const pendingApprovalParts = lastMessage.parts.filter(
+      (p): p is TUIAgentUIToolPart =>
+        isToolUIPart(p) && p.state === "approval-requested",
+    );
+
+    for (const part of pendingApprovalParts) {
+      const approval = (part as { approval?: { id: string } }).approval;
+      if (!approval?.id) continue;
+
+      for (const rule of state.pendingApprovalRules) {
+        if (toolMatchesApprovalRule(part, rule, state.workingDirectory)) {
+          addToolApprovalResponse({ id: approval.id, approved: true });
+          break;
+        }
+      }
+    }
+  }, [
+    state.pendingApprovalRules,
+    messages,
+    state.workingDirectory,
+    addToolApprovalResponse,
+  ]);
 
   const { hasPendingApproval, activeApprovalId, pendingToolPart } =
     useMemo(() => {
