@@ -29,6 +29,7 @@ import {
 
 const KNOWN_SANDBOX_TYPES = ["just-bash", "vercel", "hybrid"] as const;
 type KnownSandboxType = (typeof KNOWN_SANDBOX_TYPES)[number];
+const CHAT_UI_UPDATE_THROTTLE_MS = 75;
 
 function asKnownSandboxType(value: unknown): KnownSandboxType | null {
   if (typeof value !== "string") return null;
@@ -262,15 +263,18 @@ export function SessionChatProvider({
   const chat = useChat<WebAgentUIMessage>({
     chat: chatInstance,
     resume: shouldResume,
+    experimental_throttle: CHAT_UI_UPDATE_THROTTLE_MS,
   });
 
-  // Cleanup: remove idle instances when leaving a chat
+  // Cleanup: always release chat instances when leaving a route.
+  // If this chat is still streaming, stop the local stream processing so
+  // background chats do not consume render/CPU budget in this tab.
   useEffect(() => {
     return () => {
-      // Only clean up if the chat is not actively streaming
-      if (chatInstance.status === "ready") {
-        removeChatInstance(chatInfo.id);
+      if (chatInstance.status === "streaming") {
+        chatInstance.stop();
       }
+      removeChatInstance(chatInfo.id);
     };
   }, [chatInfo.id, chatInstance]);
 

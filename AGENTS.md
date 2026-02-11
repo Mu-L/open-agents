@@ -265,3 +265,4 @@ Use `catalog:` for shared external versions:
 - Installation sync that prunes DB records must fetch all GitHub API pages first (`per_page=100` + pagination); pruning from a partial page can silently remove valid installations.
 - For lifecycle workflow kicks in request handlers, call `kickSandboxLifecycleWorkflow(...)` directly instead of wrapping it in `after(...)`; delayed/deferred scheduling can miss the initial hibernation timer for idle sessions.
 - Hybrid sandbox wrappers must delegate `snapshot()` to the underlying cloud sandbox after handoff; if `snapshot` is missing on hybrid, lifecycle hibernation skips snapshotting and expired sessions fall back to creating a new sandbox.
+- In the web chat UI, do not keep `@ai-sdk/react` Chat instances alive after route transitions while they are still streaming; abort local stream processing and remove the instance on teardown, then rely on resumable stream reconnect when revisiting that chat.
