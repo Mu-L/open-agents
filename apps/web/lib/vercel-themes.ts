@@ -338,8 +338,8 @@ const vercelDark = {
     { scope: "constant.character.escape", settings: { foreground: "#52a8ff" } },
     { scope: "entity.name.label", settings: { foreground: "#ededed" } },
   ],
-  type: "dark",
-} as const;
+  type: "dark" as const,
+};
 
 const vercelLight = {
   colors: {
@@ -679,8 +679,8 @@ const vercelLight = {
     { scope: "constant.character.escape", settings: { foreground: "#0068d6" } },
     { scope: "entity.name.label", settings: { foreground: "#171717" } },
   ],
-  type: "light",
-} as const;
+  type: "light" as const,
+};
 
 registerCustomTheme("vercel-dark", () => Promise.resolve(vercelDark));
 registerCustomTheme("vercel-light", () => Promise.resolve(vercelLight));
