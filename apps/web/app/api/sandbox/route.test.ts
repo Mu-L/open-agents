@@ -67,6 +67,7 @@ mock.module("@/lib/github/tarball", () => ({
 }));
 
 mock.module("@/lib/db/sessions", () => ({
+  claimSandboxProvisioning: async () => true,
   getSessionById: async () => sessionRecord,
   updateSession: async (sessionId: string, patch: Record<string, unknown>) => {
     updateCalls.push({ sessionId, patch });

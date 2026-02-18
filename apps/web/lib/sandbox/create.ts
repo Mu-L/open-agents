@@ -78,9 +78,9 @@ export async function createSandboxForSession(
 
   // Atomically claim provisioning to prevent double sandbox creation.
   // Both the background after() from session creation and the client's
-  // POST /api/sandbox call createSandboxForSession -- this CAS on
-  // lifecycleVersion ensures only one caller proceeds past this point.
-  // New sessions start with lifecycleVersion=0; the winner sets it to 1.
+  // POST /api/sandbox call createSandboxForSession -- this claim gates on
+  // both lifecycleVersion and claimable lifecycleState, so late callers
+  // cannot re-claim after the winner flips lifecycleState to "active".
   const existingSession = await getSessionById(sessionId);
   const currentVersion = existingSession?.lifecycleVersion ?? 0;
   const claimed = await claimSandboxProvisioning(sessionId, currentVersion);
@@ -139,10 +139,10 @@ export async function createSandboxForSession(
           timing: { readyMs: 0 },
         };
       }
+      throw new Error(
+        `[Sandbox] Unable to claim sandbox provisioning for session ${sessionId}`,
+      );
     }
-    console.warn(
-      `[Sandbox] Claim failed but no sandbox found for session ${sessionId} after waiting -- proceeding with creation`,
-    );
   }
 
   const startTime = Date.now();

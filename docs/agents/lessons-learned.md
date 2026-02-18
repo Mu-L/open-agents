@@ -25,6 +25,7 @@ Hard-won knowledge from building this codebase. When you make a mistake or disco
 ## Sandbox Lifecycle
 
 - Creating a sandbox snapshot automatically shuts down that sandbox; lifecycle plans and implementations must treat snapshotting as a stop/hibernate transition, not a non-disruptive backup.
+- Sandbox provisioning dedupe must be ownership-based: if a caller fails to claim provisioning (including after a retry wait), it must abort instead of proceeding, or concurrent requests can create duplicate sandboxes for one session.
 - Vercel sandbox creation has a hard timeout limit of `18_000_000ms`; if you add an internal timeout buffer before calling the SDK, clamp proactive timeout so `timeout + buffer` never exceeds that API limit.
 - In serverless environments, lifecycle checks that only run inline during request handlers are not durable; long-gap sandbox lifecycle actions must be scheduled with a durable workflow run (`start(...)` + `sleep(...)`) so they execute without a connected client.
 - Vercel `snapshot()` may return `422 sandbox_snapshotting` when another snapshot is already in progress; lifecycle code should treat this as an idempotent/in-progress condition and reconcile state instead of marking lifecycle as failed.
