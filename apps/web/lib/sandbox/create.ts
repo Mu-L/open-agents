@@ -67,6 +67,13 @@ export interface CreateSandboxResult {
   timing: { readyMs: number };
 }
 
+export class SandboxProvisioningInProgressError extends Error {
+  constructor(sessionId: string) {
+    super(`Sandbox provisioning already in progress for session ${sessionId}`);
+    this.name = "SandboxProvisioningInProgressError";
+  }
+}
+
 /**
  * Core sandbox creation logic shared between the sandbox API route and
  * background provisioning triggered by session creation.
@@ -99,7 +106,9 @@ export async function createSandboxForSession(
   const currentVersion = existingSession?.lifecycleVersion ?? 0;
   const claimed = await claimSandboxProvisioning(sessionId, currentVersion);
   if (!claimed) {
-    // Another caller already claimed provisioning. Check if a sandbox exists.
+    // Another caller already claimed provisioning.
+    // If runtime state already exists, reuse it. Otherwise, do not create a
+    // second sandbox; let the caller retry/poll while the winner finishes.
     const refreshed = await getSessionById(sessionId);
     if (refreshed && hasRuntimeSandboxState(refreshed.sandboxState)) {
       console.log(
@@ -114,28 +123,7 @@ export async function createSandboxForSession(
         timing: { readyMs: 0 },
       };
     }
-    // No runtime state yet -- the other caller is likely still working.
-    // Wait briefly then check again to avoid orphaned sandboxes.
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
-    const afterWait = await getSessionById(sessionId);
-    if (afterWait && hasRuntimeSandboxState(afterWait.sandboxState)) {
-      console.log(
-        `[Sandbox] Skipping creation for session ${sessionId} -- sandbox provisioned by another caller`,
-      );
-      return {
-        createdAt: Date.now(),
-        timeout:
-          sandboxType === "just-bash" ? null : DEFAULT_SANDBOX_TIMEOUT_MS,
-        currentBranch: repoUrl ? branch : undefined,
-        mode: sandboxType,
-        timing: { readyMs: 0 },
-      };
-    }
-    // Still no runtime state after waiting. The other caller may have
-    // failed. Fall through and create the sandbox ourselves.
-    console.warn(
-      `[Sandbox] Claim failed but no sandbox found for session ${sessionId} after waiting -- proceeding with creation`,
-    );
+    throw new SandboxProvisioningInProgressError(sessionId);
   }
 
   const startTime = Date.now();

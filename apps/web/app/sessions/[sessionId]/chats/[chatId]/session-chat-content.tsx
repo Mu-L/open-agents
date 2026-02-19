@@ -113,6 +113,19 @@ type CreateSandboxResponse = SandboxInfo & {
   type: string;
 };
 
+class SandboxProvisioningInProgressError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SandboxProvisioningInProgressError";
+  }
+}
+
+function isSandboxProvisioningInProgressError(
+  error: unknown,
+): error is SandboxProvisioningInProgressError {
+  return error instanceof SandboxProvisioningInProgressError;
+}
+
 async function createSandbox(
   cloneUrl: string | undefined,
   branch: string | undefined,
@@ -131,6 +144,15 @@ async function createSandbox(
       sandboxType: sandboxType ?? "hybrid",
     }),
   });
+  if (response.status === 409) {
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw new SandboxProvisioningInProgressError(
+      payload.error ?? "Sandbox provisioning already in progress",
+    );
+  }
+
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(
@@ -1089,6 +1111,13 @@ export function SessionChatContent() {
       setSandboxTypeFromUnknown(newSandbox.type);
       void requestStatusSync("force");
     } catch (err) {
+      if (isSandboxProvisioningInProgressError(err)) {
+        const reconnected = await waitForSandboxReady();
+        if (reconnected) {
+          void requestStatusSync("force");
+          return;
+        }
+      }
       console.error("Failed to create sandbox:", err);
     } finally {
       setIsCreatingSandbox(false);
@@ -1103,6 +1132,7 @@ export function SessionChatContent() {
     setSandboxInfo,
     setSandboxTypeFromUnknown,
     requestStatusSync,
+    waitForSandboxReady,
   ]);
 
   useEffect(() => {
@@ -1270,6 +1300,13 @@ export function SessionChatContent() {
       void requestStatusSync("force");
       return true;
     } catch (err) {
+      if (isSandboxProvisioningInProgressError(err)) {
+        const reconnected = await waitForSandboxReady();
+        if (reconnected) {
+          void requestStatusSync("force");
+          return true;
+        }
+      }
       console.error("Failed to create sandbox:", err);
       return false;
     } finally {
@@ -1287,15 +1324,15 @@ export function SessionChatContent() {
     setSandboxInfo,
     setSandboxTypeFromUnknown,
     requestStatusSync,
+    waitForSandboxReady,
   ]);
 
   // Auto-create sandbox right away for new sessions/chats.
   // Skip for archived sessions.
   // When background provisioning is in progress (server kicked off sandbox
-  // creation via after()), the reconnect probe returns "no_sandbox" because
-  // the sandbox state hasn't been written to DB yet, but lifecycleTiming.state
-  // will be "active" (the provisioning claim bumps it). In that case, retry
-  // the reconnect probe instead of creating a duplicate sandbox.
+  // creation via after()), reconnect can report "no_sandbox" before runtime
+  // state lands in DB. While lifecycle state is still "provisioning", retry
+  // reconnect briefly instead of immediately posting /api/sandbox.
   useEffect(() => {
     if (isArchived) return;
     if (sandboxInfo || isCreatingSandbox || isRestoringSnapshot) return;
@@ -1304,6 +1341,7 @@ export function SessionChatContent() {
     if (session.sandboxState && reconnectionStatus === "idle") return;
     if (session.sandboxState && reconnectionStatus === "checking") return;
     if (session.sandboxState && reconnectionStatus === "connected") {
+      backgroundProvisioningRetriesRef.current = 0;
       hasAutoStartedSandboxRef.current = true;
       return;
     }
@@ -1313,15 +1351,15 @@ export function SessionChatContent() {
       return;
     }
 
-    // Background provisioning in flight: the server already claimed sandbox
-    // creation (lifecycleState moved to "active") but the sandbox state isn't
-    // in the DB yet. Retry the reconnect probe after a short delay.
+    // Background provisioning in flight: session lifecycle is still
+    // "provisioning" and sandbox runtime state may not be in DB yet.
+    // Retry the reconnect probe after a short delay.
     // Cap retries to avoid polling forever if background provisioning fails
     // and the lifecycle state reset also fails.
     const MAX_BACKGROUND_PROVISIONING_RETRIES = 20; // ~30s at 1.5s intervals
     if (
       reconnectionStatus === "no_sandbox" &&
-      lifecycleTiming.state === "active" &&
+      lifecycleTiming.state === "provisioning" &&
       backgroundProvisioningRetriesRef.current <
         MAX_BACKGROUND_PROVISIONING_RETRIES
     ) {
@@ -1335,7 +1373,12 @@ export function SessionChatContent() {
     if (hasAutoStartedSandboxRef.current) return;
     hasAutoStartedSandboxRef.current = true;
 
-    void ensureSandboxReady();
+    void (async () => {
+      const ready = await ensureSandboxReady();
+      if (!ready) {
+        hasAutoStartedSandboxRef.current = false;
+      }
+    })();
   }, [
     isArchived,
     session.sandboxState,
@@ -1480,11 +1523,16 @@ export function SessionChatContent() {
     }
   }, [questionToolCallId, addToolOutput]);
 
-  const isReconnectingSandbox =
-    reconnectionStatus === "checking" &&
+  const isProvisioningWithoutRuntime =
+    lifecycleTiming.state === "provisioning" &&
     !sandboxInfo &&
     !isCreatingSandbox &&
     !isRestoringSnapshot;
+  const isReconnectingSandbox =
+    !sandboxInfo &&
+    !isCreatingSandbox &&
+    !isRestoringSnapshot &&
+    (reconnectionStatus === "checking" || isProvisioningWithoutRuntime);
   const isHibernatingTransition =
     isReconnectingSandbox && hasSnapshot && !hasRuntimeSandboxState;
   const isServerHibernating = lifecycleTiming.state === "hibernating";
@@ -1516,6 +1564,12 @@ export function SessionChatContent() {
     if (isHibernatingUi) {
       return {
         label: "Hibernating",
+        className: "bg-amber-500/15 text-amber-700",
+      };
+    }
+    if (isProvisioningWithoutRuntime) {
+      return {
+        label: "Provisioning",
         className: "bg-amber-500/15 text-amber-700",
       };
     }

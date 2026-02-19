@@ -4,7 +4,11 @@ import { parseGitHubUrl } from "@/lib/github/client";
 import { getRepoToken } from "@/lib/github/get-repo-token";
 import { getUserGitHubToken } from "@/lib/github/user-token";
 import { DEFAULT_SANDBOX_TIMEOUT_MS } from "@/lib/sandbox/config";
-import { buildSandboxEnv, createSandboxForSession } from "@/lib/sandbox/create";
+import {
+  buildSandboxEnv,
+  createSandboxForSession,
+  SandboxProvisioningInProgressError,
+} from "@/lib/sandbox/create";
 import {
   buildActiveLifecycleUpdate,
   getNextLifecycleVersion,
@@ -132,17 +136,23 @@ export async function POST(req: Request) {
     );
   }
 
-  const result = await createSandboxForSession({
-    repoUrl,
-    branch,
-    isNewBranch,
-    sessionId,
-    sandboxType,
-    githubToken,
-    gitUser,
-  });
-
-  return Response.json(result);
+  try {
+    const result = await createSandboxForSession({
+      repoUrl,
+      branch,
+      isNewBranch,
+      sessionId,
+      sandboxType,
+      githubToken,
+      gitUser,
+    });
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof SandboxProvisioningInProgressError) {
+      return Response.json({ error: error.message }, { status: 409 });
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(req: Request) {

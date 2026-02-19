@@ -20,8 +20,10 @@ const updateCalls: Array<{
   sessionId: string;
   patch: Record<string, unknown>;
 }> = [];
+const connectCalls: unknown[] = [];
 
 let sessionRecord: TestSessionRecord;
+let claimSandboxProvisioningResult = true;
 
 function isConnectConfig(value: unknown): value is {
   state: {
@@ -67,7 +69,7 @@ mock.module("@/lib/github/tarball", () => ({
 }));
 
 mock.module("@/lib/db/sessions", () => ({
-  claimSandboxProvisioning: async () => true,
+  claimSandboxProvisioning: async () => claimSandboxProvisioningResult,
   getSessionById: async () => sessionRecord,
   updateSession: async (sessionId: string, patch: Record<string, unknown>) => {
     updateCalls.push({ sessionId, patch });
@@ -86,6 +88,7 @@ mock.module("@/lib/sandbox/lifecycle-kick", () => ({
 
 mock.module("@open-harness/sandbox", () => ({
   connectSandbox: async (config: unknown) => {
+    connectCalls.push(config);
     const nextState: {
       type: "vercel" | "hybrid";
       sandboxId: string;
@@ -119,10 +122,20 @@ mock.module("@open-harness/sandbox", () => ({
 
 const routeModulePromise = import("./route");
 
+async function getPostHandler() {
+  const routeModule = await routeModulePromise;
+  if (!routeModule.POST) {
+    throw new Error("POST handler is not defined");
+  }
+  return routeModule.POST;
+}
+
 describe("/api/sandbox lifecycle kicks", () => {
   beforeEach(() => {
     kickCalls.length = 0;
     updateCalls.length = 0;
+    connectCalls.length = 0;
+    claimSandboxProvisioningResult = true;
     sessionRecord = {
       id: "session-1",
       userId: "user-1",
@@ -132,7 +145,7 @@ describe("/api/sandbox lifecycle kicks", () => {
   });
 
   test("reconnect branch kicks lifecycle immediately", async () => {
-    const { POST } = await routeModulePromise;
+    const POST = await getPostHandler();
 
     const request = new Request("http://localhost/api/sandbox", {
       method: "POST",
@@ -152,7 +165,7 @@ describe("/api/sandbox lifecycle kicks", () => {
   });
 
   test("new vercel sandbox kicks lifecycle immediately", async () => {
-    const { POST } = await routeModulePromise;
+    const POST = await getPostHandler();
 
     const request = new Request("http://localhost/api/sandbox", {
       method: "POST",
@@ -170,5 +183,28 @@ describe("/api/sandbox lifecycle kicks", () => {
     expect(kickCalls[0]?.reason).toBe("sandbox-created");
     expect(kickCalls[0]?.scheduleBackgroundWork).toBeUndefined();
     expect(updateCalls.length).toBeGreaterThan(0);
+  });
+
+  test("returns 409 when sandbox provisioning is already in progress", async () => {
+    claimSandboxProvisioningResult = false;
+    const POST = await getPostHandler();
+
+    const request = new Request("http://localhost/api/sandbox", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "session-1",
+        sandboxType: "vercel",
+      }),
+    });
+
+    const response = await POST(request);
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(409);
+    expect(payload.error).toContain("already in progress");
+    expect(kickCalls.length).toBe(0);
+    expect(updateCalls.length).toBe(0);
+    expect(connectCalls.length).toBe(0);
   });
 });

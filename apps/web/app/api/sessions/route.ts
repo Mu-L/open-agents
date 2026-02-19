@@ -8,7 +8,10 @@ import { getUserPreferences } from "@/lib/db/user-preferences";
 import { parseGitHubUrl } from "@/lib/github/client";
 import { getRepoToken } from "@/lib/github/get-repo-token";
 import { getUserGitHubToken } from "@/lib/github/user-token";
-import { createSandboxForSession } from "@/lib/sandbox/create";
+import {
+  createSandboxForSession,
+  SandboxProvisioningInProgressError,
+} from "@/lib/sandbox/create";
 import { getServerSession } from "@/lib/session/get-server-session";
 
 interface CreateSessionRequest {
@@ -155,6 +158,12 @@ export async function POST(req: Request) {
           `[Session] Background sandbox provisioning completed for session ${sessionId}`,
         );
       } catch (error) {
+        if (error instanceof SandboxProvisioningInProgressError) {
+          console.log(
+            `[Session] Background sandbox provisioning skipped for session ${sessionId}: ${error.message}`,
+          );
+          return;
+        }
         // Non-fatal: the client auto-create effect will retry
         console.error(
           `[Session] Background sandbox provisioning failed for session ${sessionId}:`,
