@@ -843,6 +843,7 @@ export function SessionChatContent() {
     inFlight: false,
   });
   const inFlightStartedAtRef = useRef<number | null>(null);
+  const streamingStartedAtRef = useRef<number | null>(null);
   const lastStreamRecoveryAtRef = useRef(0);
 
   const requestStatusSync = useCallback(
@@ -977,7 +978,12 @@ export function SessionChatContent() {
       return;
     }
 
-    const startedAt = inFlightStartedAtRef.current;
+    // Measure from when streaming actually started, not from when the POST
+    // was sent. Server setup time (sandbox connection, skill discovery) can
+    // be 10+ seconds for the first request, and even for subsequent
+    // requests the model may take several seconds to start producing
+    // visible output (extended thinking, tool planning, etc.).
+    const startedAt = streamingStartedAtRef.current;
     if (startedAt === null || now - startedAt < STREAM_RECOVERY_STALL_MS) {
       return;
     }
@@ -997,11 +1003,18 @@ export function SessionChatContent() {
       if (inFlightStartedAtRef.current === null) {
         inFlightStartedAtRef.current = Date.now();
       }
+      // Track when the status first transitions to "streaming" so the stall
+      // recovery window starts from when data should actually be flowing,
+      // not from when the POST was sent (which includes server setup time).
+      if (status === "streaming" && streamingStartedAtRef.current === null) {
+        streamingStartedAtRef.current = Date.now();
+      }
       return;
     }
 
     inFlightStartedAtRef.current = null;
-  }, [isChatInFlight, chatInfo.id]);
+    streamingStartedAtRef.current = null;
+  }, [isChatInFlight, status, chatInfo.id]);
 
   // Recover from transient connection drops when the tab regains visibility,
   // the network comes back, or a stream remains in-flight without any visible
@@ -1031,6 +1044,9 @@ export function SessionChatContent() {
   // Schedule a stall-recovery timer only while actively streaming. During
   // "submitted" the POST is still waiting for the server to finish setup
   // and start producing data — aborting it would be premature.
+  // The timer measures from when streaming actually started (not from when
+  // the POST was sent) so that slow server setup doesn't eat into the
+  // grace period for the model to produce its first visible output.
   useEffect(() => {
     if (status !== "streaming" || hasAssistantRenderableContent) {
       return;
@@ -1042,7 +1058,7 @@ export function SessionChatContent() {
       return;
     }
 
-    const startedAt = inFlightStartedAtRef.current;
+    const startedAt = streamingStartedAtRef.current;
     const elapsed = startedAt === null ? 0 : Date.now() - startedAt;
     const waitMs = Math.max(0, STREAM_RECOVERY_STALL_MS - elapsed);
     const timeout = setTimeout(() => {
