@@ -1,5 +1,5 @@
 import { getRun } from "workflow/api";
-import { getChatById, getSessionById, updateChatActiveStreamId } from "@/lib/db/sessions";
+import { getChatById, getSessionById } from "@/lib/db/sessions";
 import { createRedisClient } from "@/lib/redis";
 import { getServerSession } from "@/lib/session/get-server-session";
 
@@ -41,7 +41,6 @@ export async function POST(_request: Request, context: RouteContext) {
   if (workflowRunId) {
     try {
       await getRun(workflowRunId).cancel();
-      await updateChatActiveStreamId(chatId, null);
       return Response.json({ success: true });
     } catch (error) {
       console.error("Failed to cancel workflow run, falling back to stop signal:", error);

@@ -1,14 +1,11 @@
 import {
   readUIMessageStream,
-  type FinishReason,
   type LanguageModelUsage,
   type ModelMessage,
   type UIMessage,
   type UIMessageChunk,
 } from "ai";
 import { getWritable } from "workflow";
-
-const MAX_CHAT_WORKFLOW_ITERATIONS = 100;
 
 export interface DurableAgentCallOptions {
   sandboxConfig: unknown;
@@ -32,75 +29,13 @@ export async function runDurableChatWorkflow(
   "use workflow";
 
   const writable = getWritable<UIMessageChunk>();
-  let modelMessages = messages;
-  let responseMessage: UIMessage | null = null;
-  let totalMessageUsage: LanguageModelUsage | undefined;
-
-  for (let index = 0; index < MAX_CHAT_WORKFLOW_ITERATIONS; index += 1) {
-    const stepResult = await runChatStep(modelMessages, writable, options);
-    modelMessages = [...modelMessages, ...stepResult.responseMessages];
-
-    if (stepResult.responseMessage) {
-      responseMessage = stepResult.responseMessage;
-    }
-
-    totalMessageUsage = addLanguageModelUsage(
-      totalMessageUsage,
-      stepResult.totalMessageUsage,
-    );
-
-    if (stepResult.finishReason !== "tool-calls") {
-      break;
-    }
-  }
+  const stepResult = await runChatStep(messages, writable, options);
 
   await closeStream(writable);
 
   return {
-    responseMessage,
-    totalMessageUsage,
-  };
-}
-
-function addLanguageModelUsage(
-  first: LanguageModelUsage | undefined,
-  second: LanguageModelUsage | undefined,
-): LanguageModelUsage | undefined {
-  if (!first) {
-    return second;
-  }
-
-  if (!second) {
-    return first;
-  }
-
-  return {
-    inputTokens: (first.inputTokens ?? 0) + (second.inputTokens ?? 0),
-    outputTokens: (first.outputTokens ?? 0) + (second.outputTokens ?? 0),
-    totalTokens: (first.totalTokens ?? 0) + (second.totalTokens ?? 0),
-    reasoningTokens:
-      (first.reasoningTokens ?? 0) + (second.reasoningTokens ?? 0),
-    cachedInputTokens:
-      (first.cachedInputTokens ?? 0) + (second.cachedInputTokens ?? 0),
-    inputTokenDetails: {
-      noCacheTokens:
-        (first.inputTokenDetails?.noCacheTokens ?? 0) +
-        (second.inputTokenDetails?.noCacheTokens ?? 0),
-      cacheReadTokens:
-        (first.inputTokenDetails?.cacheReadTokens ?? 0) +
-        (second.inputTokenDetails?.cacheReadTokens ?? 0),
-      cacheWriteTokens:
-        (first.inputTokenDetails?.cacheWriteTokens ?? 0) +
-        (second.inputTokenDetails?.cacheWriteTokens ?? 0),
-    },
-    outputTokenDetails: {
-      textTokens:
-        (first.outputTokenDetails?.textTokens ?? 0) +
-        (second.outputTokenDetails?.textTokens ?? 0),
-      reasoningTokens:
-        (first.outputTokenDetails?.reasoningTokens ?? 0) +
-        (second.outputTokenDetails?.reasoningTokens ?? 0),
-    },
+    responseMessage: stepResult.responseMessage,
+    totalMessageUsage: stepResult.totalMessageUsage,
   };
 }
 
@@ -165,12 +100,7 @@ async function runChatStep(
     responseMessage = message;
   }
 
-  const response = await result.response;
-  const finishReason = (await result.finishReason) as FinishReason;
-
   return {
-    responseMessages: response.messages,
-    finishReason,
     responseMessage,
     totalMessageUsage,
   };

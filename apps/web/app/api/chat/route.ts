@@ -11,6 +11,7 @@ import { DEFAULT_SANDBOX_PORTS } from "@/lib/sandbox/config";
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
+  readUIMessageStream,
   type GatewayModelId,
   type LanguageModelUsage,
   type UIMessageChunk,
@@ -392,11 +393,32 @@ export async function POST(req: Request) {
   }
 
   after(async () => {
-    let workflowResult: ChatWorkflowResult;
+    let workflowResult: ChatWorkflowResult | null = null;
     try {
       workflowResult = await run.returnValue;
     } catch (error) {
       console.error("Durable chat workflow failed:", error);
+
+      let partialResponseMessage: WebAgentUIMessage | null = null;
+      try {
+        for await (const message of readUIMessageStream<WebAgentUIMessage>({
+          stream: run.getReadable<UIMessageChunk>(),
+        })) {
+          partialResponseMessage = message;
+        }
+      } catch (streamError) {
+        console.error("Failed to recover partial workflow stream:", streamError);
+      }
+
+      if (partialResponseMessage) {
+        workflowResult = {
+          responseMessage: partialResponseMessage,
+          totalMessageUsage: undefined,
+        };
+      }
+    }
+
+    if (!workflowResult) {
       await clearOwnedStreamToken();
       return;
     }
