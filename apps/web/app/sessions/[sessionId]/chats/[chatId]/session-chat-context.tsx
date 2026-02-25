@@ -289,6 +289,10 @@ export function SessionChatProvider({
           headers,
           credentials,
         }),
+        prepareReconnectToStreamRequest: async ({ id, ...request }) => ({
+          ...request,
+          api: `/api/chat/${encodeURIComponent(id)}/stream`,
+        }),
       }),
     [sessionRecord.id, chatInfo.id],
   );
@@ -310,10 +314,17 @@ export function SessionChatProvider({
   const stopChatStream = useCallback(() => {
     void chatInstance.stop();
     abortChatInstanceTransport(chatInfo.id);
+
+    void fetch(`/api/chat/${encodeURIComponent(chatInfo.id)}/stop`, {
+      method: "POST",
+    }).catch((error) => {
+      console.error("Failed to stop chat workflow run:", error);
+    });
   }, [chatInfo.id, chatInstance]);
 
   const chat = useChat<WebAgentUIMessage>({
     chat: chatInstance,
+    resume: Boolean(chatInfo.activeStreamId),
     experimental_throttle: CHAT_UI_UPDATE_THROTTLE_MS,
   });
 
