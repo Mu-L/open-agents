@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Check,
+  History,
   MessageSquare,
   Pencil,
   Plus,
@@ -26,6 +27,7 @@ type ChatSidebarProps = {
   onRetryChats: () => void;
   onRenameChat: (chatId: string, title: string) => Promise<unknown>;
   onDeleteChat: (chatId: string) => Promise<unknown>;
+  onOpenSessionSwitcher: () => void;
 };
 
 export function ChatSidebar({
@@ -40,6 +42,7 @@ export function ChatSidebar({
   onRetryChats,
   onRenameChat,
   onDeleteChat,
+  onOpenSessionSwitcher,
 }: ChatSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const router = useRouter();
@@ -58,6 +61,12 @@ export function ChatSidebar({
     if (isMobile) setOpenMobile(false);
     onCreateChat();
   }, [isMobile, setOpenMobile, onCreateChat]);
+
+  const openSessionSwitcher = useCallback(() => {
+    if (isMobile) setOpenMobile(false);
+    onOpenSessionSwitcher();
+  }, [isMobile, setOpenMobile, onOpenSessionSwitcher]);
+
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -117,9 +126,17 @@ export function ChatSidebar({
         <button
           type="button"
           onClick={() => router.push("/")}
-          className="mb-3 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="mb-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
+          Home
+        </button>
+        <button
+          type="button"
+          onClick={openSessionSwitcher}
+          className="mb-3 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <History className="h-4 w-4" />
           Sessions
         </button>
         {isEditingTitle ? (

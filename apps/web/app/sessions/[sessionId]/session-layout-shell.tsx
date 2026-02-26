@@ -2,6 +2,7 @@
 
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SessionDrawer } from "@/components/session-drawer";
 import {
   Sidebar,
   SidebarContent,
@@ -12,6 +13,7 @@ import {
   type SessionChatListItem,
   useSessionChats,
 } from "@/hooks/use-session-chats";
+import { useSessions } from "@/hooks/use-sessions";
 import type { Session } from "@/lib/db/schema";
 import { ChatSidebar } from "./chats/[chatId]/chat-sidebar";
 import { SessionLayoutContext } from "./session-layout-context";
@@ -41,6 +43,8 @@ export function SessionLayoutShell({
   const optimisticActiveChatIdRef = useRef<string | null>(null);
 
   const sessionId = initialSession.id;
+  const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
+  const { sessions, loading: sessionsLoading } = useSessions();
 
   const {
     chats,
@@ -148,6 +152,22 @@ export function SessionLayoutShell({
     [chats, deleteChat, activeChatId, router, sessionId],
   );
 
+  const handleOpenSessionSwitcher = useCallback(() => {
+    setSessionDrawerOpen(true);
+  }, []);
+
+  const handleSessionSwitch = useCallback(
+    (nextSessionId: string) => {
+      if (nextSessionId === sessionId) {
+        setSessionDrawerOpen(false);
+        return;
+      }
+
+      router.push(`/sessions/${nextSessionId}`);
+    },
+    [router, sessionId],
+  );
+
   const sidebarContent = (
     <ChatSidebar
       sessionTitle={sessionTitle}
@@ -161,6 +181,7 @@ export function SessionLayoutShell({
       onRetryChats={handleRetryChats}
       onRenameChat={renameChat}
       onDeleteChat={handleDeleteChat}
+      onOpenSessionSwitcher={handleOpenSessionSwitcher}
     />
   );
 
@@ -195,6 +216,13 @@ export function SessionLayoutShell({
         <SidebarInset className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </SidebarInset>
+        <SessionDrawer
+          open={sessionDrawerOpen}
+          onOpenChange={setSessionDrawerOpen}
+          sessions={sessions}
+          loading={sessionsLoading}
+          onSessionClick={handleSessionSwitch}
+        />
       </SidebarProvider>
     </SessionLayoutContext.Provider>
   );
