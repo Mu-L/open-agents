@@ -119,10 +119,9 @@ export function WriteRenderer({
       {/* Collapsed summary */}
       {!isExpanded && showCode && !mergedState.denied && (
         <div className="mt-2 pl-5 text-sm text-muted-foreground">
-          File created
-          {totalLines > 0
-            ? ` • ${totalLines} line${totalLines === 1 ? "" : "s"}`
-            : ""}
+          <span className="text-green-500">+{totalLines}</span>
+          <span className="mx-1 text-red-500">-0</span>
+          <span className="text-muted-foreground"> lines</span>
           {hasExpandableContent ? " • Click to preview" : ""}
         </div>
       )}
@@ -130,7 +129,11 @@ export function WriteRenderer({
       {/* Expanded full content */}
       {isExpanded && showCode && !mergedState.denied && (
         <div className="mt-3 border-t border-border pt-3">
-          <div className="mb-2 text-sm text-muted-foreground">File created</div>
+          <div className="mb-2 text-sm text-muted-foreground">
+            <span className="text-green-500">+{totalLines}</span>
+            <span className="mx-1 text-red-500">-0</span>
+            <span className="text-muted-foreground"> lines</span>
+          </div>
 
           <div className="max-h-96 overflow-auto">
             <DiffsFile
