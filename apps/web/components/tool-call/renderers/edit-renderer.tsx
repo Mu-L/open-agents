@@ -138,13 +138,6 @@ export function EditRenderer({
         <div className="mt-2 pl-5 text-sm text-muted-foreground">
           <span className="text-green-500">+{additions}</span>
           <span className="mx-1 text-red-500">-{removals}</span>
-          <span className="text-muted-foreground"> lines</span>
-          {hasExpandableContent ? (
-            <span className="text-muted-foreground">
-              {" "}
-              • Click to preview diff
-            </span>
-          ) : null}
         </div>
       )}
 
@@ -154,7 +147,6 @@ export function EditRenderer({
           <div className="mb-2 text-sm text-muted-foreground">
             <span className="text-green-500">+{additions}</span>
             <span className="mx-1 text-red-500">-{removals}</span>
-            <span className="text-muted-foreground"> lines</span>
           </div>
 
           <div className="max-h-96 overflow-auto">

@@ -121,8 +121,6 @@ export function WriteRenderer({
         <div className="mt-2 pl-5 text-sm text-muted-foreground">
           <span className="text-green-500">+{totalLines}</span>
           <span className="mx-1 text-red-500">-0</span>
-          <span className="text-muted-foreground"> lines</span>
-          {hasExpandableContent ? " • Click to preview" : ""}
         </div>
       )}
 
@@ -132,7 +130,6 @@ export function WriteRenderer({
           <div className="mb-2 text-sm text-muted-foreground">
             <span className="text-green-500">+{totalLines}</span>
             <span className="mx-1 text-red-500">-0</span>
-            <span className="text-muted-foreground"> lines</span>
           </div>
 
           <div className="max-h-96 overflow-auto">
