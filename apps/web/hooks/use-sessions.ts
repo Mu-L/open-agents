@@ -122,6 +122,7 @@ export function useSessions(options?: UseSessionsOptions) {
       ? lastNonEmptySessionsRef.current
       : mergedSessions;
   const loading = isLoading && sessions.length === 0;
+  const hasResolved = !enabled || data !== undefined;
 
   useEffect(() => {
     if (!data?.sessions || sessionStreamingOverlays.size === 0) {
@@ -301,6 +302,7 @@ export function useSessions(options?: UseSessionsOptions) {
   return {
     sessions,
     loading,
+    hasResolved,
     error,
     createSession,
     archiveSession,

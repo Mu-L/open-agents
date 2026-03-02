@@ -27,6 +27,7 @@ type CreateSessionInput = {
 type InboxSidebarProps = {
   sessions: SessionWithUnread[];
   sessionsLoading: boolean;
+  sessionsResolved: boolean;
   activeSessionId: string;
   onSessionClick: (session: SessionWithUnread) => void;
   onSessionPrefetch: (session: SessionWithUnread) => void;
@@ -261,6 +262,7 @@ function areSessionRowsEqual(prev: SessionRowProps, next: SessionRowProps): bool
 export function InboxSidebar({
   sessions,
   sessionsLoading,
+  sessionsResolved,
   activeSessionId,
   onSessionClick,
   onSessionPrefetch,
@@ -291,7 +293,8 @@ export function InboxSidebar({
     [sessions],
   );
   const displayedSessions = showArchived ? archivedSessions : activeSessions;
-  const showLoadingSkeleton = sessionsLoading && sessions.length === 0;
+  const showLoadingSkeleton =
+    !sessionsResolved || (sessionsLoading && sessions.length === 0);
 
   const handleSessionClick = useCallback(
     (session: SessionWithUnread) => {

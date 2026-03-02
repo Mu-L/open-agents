@@ -44,6 +44,7 @@ export function SessionLayoutShell({
   const {
     sessions,
     loading: sessionsLoading,
+    hasResolved: sessionsResolved,
     refreshSessions,
     createSession,
   } = useSessions({
@@ -108,6 +109,7 @@ export function SessionLayoutShell({
     <InboxSidebar
       sessions={sessions}
       sessionsLoading={sessionsLoading}
+      sessionsResolved={sessionsResolved}
       activeSessionId={sessionId}
       onSessionClick={handleSessionClick}
       onSessionPrefetch={handleSessionPrefetch}
