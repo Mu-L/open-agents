@@ -23,7 +23,8 @@ interface SessionDrawerProps {
   onOpenChange: (open: boolean) => void;
   sessions: SessionWithUnread[];
   loading: boolean;
-  onSessionClick: (sessionId: string) => void;
+  onSessionClick: (session: SessionWithUnread) => void;
+  onSessionPrefetch: (session: SessionWithUnread) => void;
 }
 
 function formatTime(date: Date): string {
@@ -104,10 +105,12 @@ function SessionGroup({
   dateGroup,
   sessions,
   onSessionClick,
+  onSessionPrefetch,
 }: {
   dateGroup: string;
   sessions: SessionWithUnread[];
-  onSessionClick: (sessionId: string) => void;
+  onSessionClick: (session: SessionWithUnread) => void;
+  onSessionPrefetch: (session: SessionWithUnread) => void;
 }) {
   return (
     <div>
@@ -119,7 +122,9 @@ function SessionGroup({
           <button
             key={session.id}
             type="button"
-            onClick={() => onSessionClick(session.id)}
+            onClick={() => onSessionClick(session)}
+            onMouseEnter={() => onSessionPrefetch(session)}
+            onFocus={() => onSessionPrefetch(session)}
             className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
           >
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -171,6 +176,7 @@ function SessionDrawerInner({
   sessions,
   loading,
   onSessionClick,
+  onSessionPrefetch,
   onOpenChange,
 }: Omit<SessionDrawerProps, "open">) {
   const [tab, setTab] = useState<DrawerTab>("sessions");
@@ -181,8 +187,8 @@ function SessionDrawerInner({
     tab === "sessions" ? activeSessions : archivedSessions;
   const groupedSessions = groupSessionsByDate(displayedSessions);
 
-  const handleSessionClick = (sessionId: string) => {
-    onSessionClick(sessionId);
+  const handleSessionClick = (session: SessionWithUnread) => {
+    onSessionClick(session);
     onOpenChange(false);
   };
 
@@ -246,6 +252,7 @@ function SessionDrawerInner({
                     dateGroup={dateGroup}
                     sessions={groupSessions}
                     onSessionClick={handleSessionClick}
+                    onSessionPrefetch={onSessionPrefetch}
                   />
                 ),
               )}
@@ -263,6 +270,7 @@ export function SessionDrawer({
   sessions,
   loading,
   onSessionClick,
+  onSessionPrefetch,
 }: SessionDrawerProps) {
   const isMobile = useIsMobile();
 
@@ -277,6 +285,7 @@ export function SessionDrawer({
             sessions={sessions}
             loading={loading}
             onSessionClick={onSessionClick}
+            onSessionPrefetch={onSessionPrefetch}
             onOpenChange={onOpenChange}
           />
         </DrawerContent>
@@ -297,6 +306,7 @@ export function SessionDrawer({
           sessions={sessions}
           loading={loading}
           onSessionClick={onSessionClick}
+          onSessionPrefetch={onSessionPrefetch}
           onOpenChange={onOpenChange}
         />
       </SheetContent>

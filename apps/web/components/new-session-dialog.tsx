@@ -10,31 +10,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useSessions } from "@/hooks/use-sessions";
+
+type CreateSessionInput = {
+  repoOwner?: string;
+  repoName?: string;
+  branch?: string;
+  cloneUrl?: string;
+  isNewBranch: boolean;
+  sandboxType: SandboxType;
+};
 
 interface NewSessionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lastRepo: { owner: string; repo: string } | null;
+  createSession: (input: CreateSessionInput) => Promise<{
+    session: { id: string };
+    chat: { id: string };
+  }>;
 }
 
 export function NewSessionDialog({
   open,
   onOpenChange,
   lastRepo,
+  createSession,
 }: NewSessionDialogProps) {
   const router = useRouter();
-  const { createSession } = useSessions({ enabled: true });
   const [isCreating, setIsCreating] = useState(false);
 
-  const handleCreateSession = async (input: {
-    repoOwner?: string;
-    repoName?: string;
-    branch?: string;
-    cloneUrl?: string;
-    isNewBranch: boolean;
-    sandboxType: SandboxType;
-  }) => {
+  const handleCreateSession = async (input: CreateSessionInput) => {
     setIsCreating(true);
     try {
       const { session: createdSession, chat } = await createSession({

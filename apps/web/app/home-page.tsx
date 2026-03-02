@@ -12,11 +12,18 @@ import { SessionStarter } from "@/components/session-starter";
 import { UserAvatarDropdown } from "@/components/user-avatar-dropdown";
 import { useCliTokens } from "@/hooks/use-cli-tokens";
 import { useSession } from "@/hooks/use-session";
-import { useSessions } from "@/hooks/use-sessions";
+import { useSessions, type SessionWithUnread } from "@/hooks/use-sessions";
 
 interface HomePageProps {
   hasSessionCookie: boolean;
   lastRepo: { owner: string; repo: string } | null;
+}
+
+function getSessionHref(session: SessionWithUnread): string {
+  if (session.latestChatId) {
+    return `/sessions/${session.id}/chats/${session.latestChatId}`;
+  }
+  return `/sessions/${session.id}`;
 }
 
 export function HomePage({ hasSessionCookie, lastRepo }: HomePageProps) {
@@ -59,8 +66,12 @@ export function HomePage({ hasSessionCookie, lastRepo }: HomePageProps) {
     }
   };
 
-  const handleSessionClick = (sessionId: string) => {
-    router.push(`/sessions/${sessionId}`);
+  const handleSessionClick = (session: SessionWithUnread) => {
+    router.push(getSessionHref(session));
+  };
+
+  const handleSessionPrefetch = (session: SessionWithUnread) => {
+    router.prefetch(getSessionHref(session));
   };
 
   if (sessionLoading && hasSessionCookie) {
@@ -120,6 +131,7 @@ export function HomePage({ hasSessionCookie, lastRepo }: HomePageProps) {
         sessions={sessions}
         loading={loading}
         onSessionClick={handleSessionClick}
+        onSessionPrefetch={handleSessionPrefetch}
       />
     </div>
   );

@@ -1,18 +1,40 @@
 "use client";
 
 import { Archive, GitMerge, Pencil, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { NewSessionDialog } from "@/components/new-session-dialog";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import type { SessionWithUnread } from "@/hooks/use-sessions";
 
+type CreateSessionInput = {
+  repoOwner?: string;
+  repoName?: string;
+  branch?: string;
+  cloneUrl?: string;
+  isNewBranch: boolean;
+  sandboxType: "hybrid" | "vercel" | "just-bash";
+};
+
 type InboxSidebarProps = {
   sessions: SessionWithUnread[];
   sessionsLoading: boolean;
   activeSessionId: string;
-  onSessionClick: (sessionId: string) => void;
+  onSessionClick: (session: SessionWithUnread) => void;
+  onSessionPrefetch: (session: SessionWithUnread) => void;
   onRenameSession: (sessionId: string, title: string) => Promise<void>;
+  createSession: (input: CreateSessionInput) => Promise<{
+    session: { id: string };
+    chat: { id: string };
+  }>;
   lastRepo: { owner: string; repo: string } | null;
 };
 
@@ -74,12 +96,176 @@ function PrBadge({
   return <span className="text-[10px] text-muted-foreground">#{prNumber}</span>;
 }
 
+type SessionRowProps = {
+  session: SessionWithUnread;
+  isActive: boolean;
+  isEditing: boolean;
+  editingTitle: string;
+  editInputRef: RefObject<HTMLInputElement | null>;
+  onSessionClick: (session: SessionWithUnread) => void;
+  onSessionPrefetch: (session: SessionWithUnread) => void;
+  onStartEdit: (session: SessionWithUnread) => void;
+  onEditTitleChange: (title: string) => void;
+  onRenameSubmit: (sessionId: string, title: string) => Promise<void>;
+  onCancelEdit: () => void;
+};
+
+const SessionRow = memo(function SessionRow({
+  session,
+  isActive,
+  isEditing,
+  editingTitle,
+  editInputRef,
+  onSessionClick,
+  onSessionPrefetch,
+  onStartEdit,
+  onEditTitleChange,
+  onRenameSubmit,
+  onCancelEdit,
+}: SessionRowProps) {
+  const isWorking = session.hasStreaming;
+  const isUnread = session.hasUnread && !isActive;
+  const createdAtLabel = useMemo(
+    () => formatRelativeTime(new Date(session.createdAt)),
+    [session.createdAt],
+  );
+
+  return (
+    <div
+      className={`group relative flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors ${
+        isActive ? "bg-secondary" : "hover:bg-muted/50"
+      }`}
+    >
+      <div className="flex h-5 w-3 shrink-0 items-center justify-center">
+        {isWorking ? (
+          <span className="h-2 w-2 rounded-full bg-foreground/70 animate-pulse" />
+        ) : isUnread ? (
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+        ) : null}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        {isEditing ? (
+          <input
+            ref={editInputRef}
+            type="text"
+            value={editingTitle}
+            onChange={(e) => onEditTitleChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void onRenameSubmit(session.id, editingTitle);
+              } else if (e.key === "Escape") {
+                onCancelEdit();
+              }
+            }}
+            onBlur={() => {
+              void onRenameSubmit(session.id, editingTitle);
+            }}
+            className="h-5 w-full rounded bg-transparent text-sm font-medium text-foreground focus:outline-none"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => onSessionClick(session)}
+            onMouseEnter={() => onSessionPrefetch(session)}
+            onFocus={() => onSessionPrefetch(session)}
+            className="block w-full text-left"
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <p
+                className={`truncate text-sm ${
+                  isUnread || isWorking
+                    ? "font-semibold text-foreground"
+                    : "font-medium text-foreground"
+                }`}
+              >
+                {session.title}
+              </p>
+              <span className="shrink-0 text-[11px] text-muted-foreground">
+                {createdAtLabel}
+              </span>
+            </div>
+
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              {session.repoName && (
+                <span className="truncate">
+                  {session.repoName}
+                  {session.branch && (
+                    <span className="text-muted-foreground/50">
+                      /{session.branch}
+                    </span>
+                  )}
+                </span>
+              )}
+              {!session.repoName && isWorking && (
+                <span className="text-muted-foreground/60">Working...</span>
+              )}
+              <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                <PrBadge prNumber={session.prNumber} status={session.prStatus} />
+                <DiffStats
+                  added={session.linesAdded}
+                  removed={session.linesRemoved}
+                />
+              </span>
+            </div>
+          </button>
+        )}
+      </div>
+
+      {!isEditing && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartEdit(session);
+          }}
+          className="absolute right-2 top-2.5 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background/60 hover:text-foreground group-hover:opacity-100"
+          aria-label={`Rename ${session.title}`}
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+}, areSessionRowsEqual);
+
+function areSessionRowsEqual(prev: SessionRowProps, next: SessionRowProps): boolean {
+  if (prev.isActive !== next.isActive || prev.isEditing !== next.isEditing) {
+    return false;
+  }
+
+  if (
+    prev.isEditing &&
+    next.isEditing &&
+    prev.editingTitle !== next.editingTitle
+  ) {
+    return false;
+  }
+
+  return (
+    prev.session.id === next.session.id &&
+    prev.session.title === next.session.title &&
+    prev.session.hasStreaming === next.session.hasStreaming &&
+    prev.session.hasUnread === next.session.hasUnread &&
+    prev.session.repoName === next.session.repoName &&
+    prev.session.branch === next.session.branch &&
+    prev.session.prNumber === next.session.prNumber &&
+    prev.session.prStatus === next.session.prStatus &&
+    prev.session.linesAdded === next.session.linesAdded &&
+    prev.session.linesRemoved === next.session.linesRemoved &&
+    String(prev.session.createdAt) === String(next.session.createdAt)
+  );
+}
+
 export function InboxSidebar({
   sessions,
   sessionsLoading,
   activeSessionId,
   onSessionClick,
+  onSessionPrefetch,
   onRenameSession,
+  createSession,
   lastRepo,
 }: InboxSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar();
@@ -108,12 +294,24 @@ export function InboxSidebar({
   const showLoadingSkeleton = sessionsLoading && sessions.length === 0;
 
   const handleSessionClick = useCallback(
-    (sessionId: string) => {
+    (session: SessionWithUnread) => {
       if (isMobile) setOpenMobile(false);
-      onSessionClick(sessionId);
+      onSessionClick(session);
     },
-    [isMobile, setOpenMobile, onSessionClick],
+    [isMobile, onSessionClick, setOpenMobile],
   );
+
+  const handleSessionPrefetch = useCallback(
+    (session: SessionWithUnread) => {
+      onSessionPrefetch(session);
+    },
+    [onSessionPrefetch],
+  );
+
+  const handleStartEdit = useCallback((session: SessionWithUnread) => {
+    setEditingSessionId(session.id);
+    setEditingTitle(session.title);
+  }, []);
 
   const handleRenameSubmit = useCallback(
     async (sessionId: string, title: string) => {
@@ -135,7 +333,6 @@ export function InboxSidebar({
 
   return (
     <>
-      {/* Header */}
       <div className="border-b border-border p-3">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">Inbox</h2>
@@ -150,7 +347,6 @@ export function InboxSidebar({
           </Button>
         </div>
 
-        {/* Filter toggle */}
         <div className="flex gap-1">
           <button
             type="button"
@@ -188,7 +384,6 @@ export function InboxSidebar({
         </div>
       </div>
 
-      {/* Session list */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {showLoadingSkeleton ? (
           <div className="space-y-1 p-2">
@@ -205,129 +400,31 @@ export function InboxSidebar({
           </div>
         ) : (
           <div className="space-y-px p-1.5">
-            {displayedSessions.map((session) => {
-              const isActive = session.id === activeSessionId;
-              const isWorking = session.hasStreaming;
-              const isUnread = session.hasUnread && !isActive;
-              const isEditing = editingSessionId === session.id;
-
-              return (
-                <div
-                  key={session.id}
-                  className={`group relative flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors ${
-                    isActive ? "bg-secondary" : "hover:bg-muted/50"
-                  }`}
-                >
-                  {/* Status dot */}
-                  <div className="flex h-5 w-3 shrink-0 items-center justify-center">
-                    {isWorking ? (
-                      <span className="h-2 w-2 rounded-full bg-foreground/70 animate-pulse" />
-                    ) : isUnread ? (
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    ) : null}
-                  </div>
-
-                  {/* Content */}
-                  <div className="min-w-0 flex-1">
-                    {isEditing ? (
-                      <input
-                        ref={editInputRef}
-                        type="text"
-                        value={editingTitle}
-                        onChange={(e) => setEditingTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            void handleRenameSubmit(session.id, editingTitle);
-                          } else if (e.key === "Escape") {
-                            setEditingSessionId(null);
-                          }
-                        }}
-                        onBlur={() => {
-                          void handleRenameSubmit(session.id, editingTitle);
-                        }}
-                        className="h-5 w-full rounded bg-transparent text-sm font-medium text-foreground focus:outline-none"
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleSessionClick(session.id)}
-                        className="block w-full text-left"
-                      >
-                        <div className="flex items-baseline justify-between gap-2">
-                          <p
-                            className={`truncate text-sm ${
-                              isUnread || isWorking
-                                ? "font-semibold text-foreground"
-                                : "font-medium text-foreground"
-                            }`}
-                          >
-                            {session.title}
-                          </p>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">
-                            {formatRelativeTime(new Date(session.createdAt))}
-                          </span>
-                        </div>
-
-                        {/* Preview line: repo + branch + stats */}
-                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                          {session.repoName && (
-                            <span className="truncate">
-                              {session.repoName}
-                              {session.branch && (
-                                <span className="text-muted-foreground/50">
-                                  /{session.branch}
-                                </span>
-                              )}
-                            </span>
-                          )}
-                          {!session.repoName && isWorking && (
-                            <span className="text-muted-foreground/60">
-                              Working...
-                            </span>
-                          )}
-                          <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                            <PrBadge
-                              prNumber={session.prNumber}
-                              status={session.prStatus}
-                            />
-                            <DiffStats
-                              added={session.linesAdded}
-                              removed={session.linesRemoved}
-                            />
-                          </span>
-                        </div>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Rename button — visible on hover */}
-                  {!isEditing && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingSessionId(session.id);
-                        setEditingTitle(session.title);
-                      }}
-                      className="absolute right-2 top-2.5 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background/60 hover:text-foreground group-hover:opacity-100"
-                      aria-label={`Rename ${session.title}`}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+            {displayedSessions.map((session) => (
+              <SessionRow
+                key={session.id}
+                session={session}
+                isActive={session.id === activeSessionId}
+                isEditing={editingSessionId === session.id}
+                editingTitle={editingTitle}
+                editInputRef={editInputRef}
+                onSessionClick={handleSessionClick}
+                onSessionPrefetch={handleSessionPrefetch}
+                onStartEdit={handleStartEdit}
+                onEditTitleChange={setEditingTitle}
+                onRenameSubmit={handleRenameSubmit}
+                onCancelEdit={() => setEditingSessionId(null)}
+              />
+            ))}
           </div>
         )}
       </div>
 
-      {/* New session modal */}
       <NewSessionDialog
         open={newSessionOpen}
         onOpenChange={setNewSessionOpen}
         lastRepo={lastRepo}
+        createSession={createSession}
       />
     </>
   );

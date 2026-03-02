@@ -8,6 +8,7 @@ import { fetcher } from "@/lib/swr";
 export type SessionWithUnread = Session & {
   hasUnread: boolean;
   hasStreaming: boolean;
+  latestChatId: string | null;
 };
 
 interface CreateSessionInput {
@@ -241,7 +242,12 @@ export function useSessions(options?: UseSessionsOptions) {
     await mutate(
       {
         sessions: [
-          { ...createdSession, hasUnread: false, hasStreaming: false },
+          {
+            ...createdSession,
+            hasUnread: false,
+            hasStreaming: false,
+            latestChatId: createdChat.id,
+          },
           ...sessions,
         ],
       },
@@ -280,6 +286,7 @@ export function useSessions(options?: UseSessionsOptions) {
                   ...updatedSession,
                   hasUnread: s.hasUnread,
                   hasStreaming: s.hasStreaming,
+                  latestChatId: s.latestChatId,
                 }
               : s,
           ),

@@ -22,14 +22,12 @@ type SessionLayoutShellProps = {
     defaultModelId: string | null;
     chats: SessionChatListItem[];
   };
-  initialSessionsData?: SessionWithUnread[];
   children: React.ReactNode;
 };
 
 export function SessionLayoutShell({
   session: initialSession,
   initialChatsData,
-  initialSessionsData,
   children,
 }: SessionLayoutShellProps) {
   const router = useRouter();
@@ -47,9 +45,9 @@ export function SessionLayoutShell({
     sessions,
     loading: sessionsLoading,
     refreshSessions,
+    createSession,
   } = useSessions({
     enabled: true,
-    initialData: initialSessionsData,
   });
 
   // Derive lastRepo from the current session for the new-session dialog
@@ -63,12 +61,26 @@ export function SessionLayoutShell({
     return null;
   }, [initialSession.repoOwner, initialSession.repoName]);
 
+  const getSessionHref = useCallback((targetSession: SessionWithUnread) => {
+    if (targetSession.latestChatId) {
+      return `/sessions/${targetSession.id}/chats/${targetSession.latestChatId}`;
+    }
+    return `/sessions/${targetSession.id}`;
+  }, []);
+
   // Handle session click from the inbox sidebar
   const handleSessionClick = useCallback(
-    (targetSessionId: string) => {
-      router.push(`/sessions/${targetSessionId}`);
+    (targetSession: SessionWithUnread) => {
+      router.push(getSessionHref(targetSession));
     },
-    [router],
+    [getSessionHref, router],
+  );
+
+  const handleSessionPrefetch = useCallback(
+    (targetSession: SessionWithUnread) => {
+      router.prefetch(getSessionHref(targetSession));
+    },
+    [getSessionHref, router],
   );
 
   // Handle renaming a session
@@ -98,7 +110,9 @@ export function SessionLayoutShell({
       sessionsLoading={sessionsLoading}
       activeSessionId={sessionId}
       onSessionClick={handleSessionClick}
+      onSessionPrefetch={handleSessionPrefetch}
       onRenameSession={handleRenameSession}
+      createSession={createSession}
       lastRepo={lastRepo}
     />
   );
