@@ -81,8 +81,13 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function extractPartsArray(raw: unknown): MessagePart[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(isObjectRecord) as MessagePart[];
+  if (Array.isArray(raw)) return raw.filter(isObjectRecord) as MessagePart[];
+  // The DB stores the full UIMessage object as `parts`, so the actual parts
+  // array lives at raw.parts.
+  if (isObjectRecord(raw) && Array.isArray(raw.parts)) {
+    return (raw.parts as unknown[]).filter(isObjectRecord) as MessagePart[];
+  }
+  return [];
 }
 
 /**
