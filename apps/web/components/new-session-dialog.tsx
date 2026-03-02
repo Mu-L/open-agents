@@ -65,7 +65,7 @@ export function NewSessionDialog({
           onSubmit={handleCreateSession}
           isLoading={isCreating}
           lastRepo={lastRepo}
-          className="max-w-none rounded-[28px] border-border/60 bg-card p-8 shadow-[0_10px_30px_rgba(0,0,0,0.08)] backdrop-blur-none supports-[backdrop-filter]:bg-card sm:p-10"
+          className="max-w-none rounded-[28px] border-border/60 bg-card p-8 shadow-[0_10px_30px_rgba(0,0,0,0.08)] backdrop-blur-none supports-[backdrop-filter]:bg-card dark:bg-card sm:p-10"
         />
       </DialogContent>
     </Dialog>
