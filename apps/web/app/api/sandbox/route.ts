@@ -6,14 +6,15 @@ import {
 import { after } from "next/server";
 import { getGitHubAccount } from "@/lib/db/accounts";
 import { getSessionById, updateSession } from "@/lib/db/sessions";
+import { getUserPreferences } from "@/lib/db/user-preferences";
 import { parseGitHubUrl } from "@/lib/github/client";
 import { getRepoToken } from "@/lib/github/get-repo-token";
 import { downloadAndExtractTarball } from "@/lib/github/tarball";
 import { getUserGitHubToken } from "@/lib/github/user-token";
 import {
-  DEFAULT_SANDBOX_BASE_SNAPSHOT_ID,
   DEFAULT_SANDBOX_PORTS,
   DEFAULT_SANDBOX_TIMEOUT_MS,
+  resolveSandboxBaseSnapshotId,
 } from "@/lib/sandbox/config";
 import {
   buildActiveLifecycleUpdate,
@@ -69,6 +70,11 @@ export async function POST(req: Request) {
   if (!session?.user) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
   }
+
+  const preferences = await getUserPreferences(session.user.id);
+  const baseSnapshotId = resolveSandboxBaseSnapshotId(
+    preferences.defaultSandboxSnapshotPreset,
+  );
 
   let githubToken: string | null = null;
 
@@ -220,7 +226,7 @@ export async function POST(req: Request) {
         gitUser,
         timeout: DEFAULT_SANDBOX_TIMEOUT_MS,
         ports: DEFAULT_SANDBOX_PORTS,
-        baseSnapshotId: DEFAULT_SANDBOX_BASE_SNAPSHOT_ID,
+        baseSnapshotId,
       },
     });
   } else {
@@ -237,7 +243,7 @@ export async function POST(req: Request) {
         gitUser,
         timeout: DEFAULT_SANDBOX_TIMEOUT_MS,
         ports: DEFAULT_SANDBOX_PORTS,
-        baseSnapshotId: DEFAULT_SANDBOX_BASE_SNAPSHOT_ID,
+        baseSnapshotId,
         scheduleBackgroundWork: (cb) => after(cb),
         hooks: sessionId
           ? {

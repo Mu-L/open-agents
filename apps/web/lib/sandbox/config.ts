@@ -33,6 +33,9 @@ export const DEFAULT_SANDBOX_PORTS = [3000, 5173, 4321];
 /** Default working directory for sandboxes, used for path display */
 export const DEFAULT_WORKING_DIRECTORY = "/vercel/sandbox";
 
+/** Snapshot presets for fresh cloud sandboxes. */
+export type SandboxSnapshotPreset = "default" | "browser";
+
 /**
  * Base snapshot for fresh cloud sandboxes.
  * Includes commonly-needed tooling such as bun and jq.
@@ -40,3 +43,20 @@ export const DEFAULT_WORKING_DIRECTORY = "/vercel/sandbox";
 export const DEFAULT_SANDBOX_BASE_SNAPSHOT_ID =
   process.env.VERCEL_SANDBOX_BASE_SNAPSHOT_ID ??
   "snap_MQ0NqdLL5qEXiYusgWL3K0yaMmql";
+
+/**
+ * Browser-enabled snapshot for fresh cloud sandboxes.
+ * Includes default tooling plus agent-browser and Chromium.
+ */
+export const BROWSER_SANDBOX_BASE_SNAPSHOT_ID =
+  process.env.VERCEL_SANDBOX_BROWSER_BASE_SNAPSHOT_ID ??
+  "snap_C8tUFhwRXZky4MaFvTuwO7DH66wx";
+
+export function resolveSandboxBaseSnapshotId(
+  snapshotPreset: SandboxSnapshotPreset,
+): string {
+  if (snapshotPreset === "browser") {
+    return BROWSER_SANDBOX_BASE_SNAPSHOT_ID;
+  }
+  return DEFAULT_SANDBOX_BASE_SNAPSHOT_ID;
+}

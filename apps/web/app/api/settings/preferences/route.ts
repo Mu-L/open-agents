@@ -4,11 +4,13 @@ import {
   updateUserPreferences,
 } from "@/lib/db/user-preferences";
 import type { SandboxType } from "@/components/sandbox-selector-compact";
+import type { SandboxSnapshotPreset } from "@/lib/sandbox/config";
 
 interface UpdatePreferencesRequest {
   defaultModelId?: string;
   defaultSubagentModelId?: string | null;
   defaultSandboxType?: SandboxType;
+  defaultSandboxSnapshotPreset?: SandboxSnapshotPreset;
 }
 
 export async function GET() {
@@ -39,6 +41,16 @@ export async function PATCH(req: Request) {
     const validTypes = ["hybrid", "vercel", "just-bash"];
     if (!validTypes.includes(body.defaultSandboxType)) {
       return Response.json({ error: "Invalid sandbox type" }, { status: 400 });
+    }
+  }
+
+  if (body.defaultSandboxSnapshotPreset) {
+    const validSnapshotPresets = ["default", "browser"];
+    if (!validSnapshotPresets.includes(body.defaultSandboxSnapshotPreset)) {
+      return Response.json(
+        { error: "Invalid sandbox snapshot preset" },
+        { status: 400 },
+      );
     }
   }
 

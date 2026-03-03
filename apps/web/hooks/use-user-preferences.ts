@@ -3,11 +3,13 @@
 import useSWR from "swr";
 import { fetcher } from "@/lib/swr";
 import type { SandboxType } from "@/components/sandbox-selector-compact";
+import type { SandboxSnapshotPreset } from "@/lib/sandbox/config";
 
 export interface UserPreferences {
   defaultModelId: string;
   defaultSubagentModelId: string | null;
   defaultSandboxType: SandboxType;
+  defaultSandboxSnapshotPreset: SandboxSnapshotPreset;
 }
 
 interface PreferencesResponse {

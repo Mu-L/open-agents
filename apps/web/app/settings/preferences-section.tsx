@@ -23,6 +23,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ModelCombobox } from "@/components/model-combobox";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
 import {
@@ -30,6 +44,7 @@ import {
   DEFAULT_MODEL_ID,
   getModelDisplayName,
 } from "@/lib/models";
+import type { SandboxSnapshotPreset } from "@/lib/sandbox/config";
 import { fetcher } from "@/lib/swr";
 
 interface ModelsResponse {
@@ -46,6 +61,23 @@ const THEME_OPTIONS: Array<{ id: ThemePreference; name: string }> = [
   { id: "system", name: "System" },
   { id: "light", name: "Light" },
   { id: "dark", name: "Dark" },
+];
+
+const SANDBOX_SNAPSHOT_PRESET_OPTIONS: Array<{
+  id: SandboxSnapshotPreset;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "default",
+    label: "Default snapshot",
+    description: "Includes bun and jq.",
+  },
+  {
+    id: "browser",
+    label: "Browser-enabled snapshot",
+    description: "Includes bun, jq, agent-browser, and Chromium.",
+  },
 ];
 
 function isThemePreference(value: string): value is ThemePreference {
@@ -98,6 +130,18 @@ export function PreferencesSectionSkeleton() {
             The execution environment for new sessions.
           </p>
         </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="sandbox-snapshot">Sandbox Snapshot</Label>
+          <Select disabled>
+            <SelectTrigger id="sandbox-snapshot" className="w-full max-w-xs">
+              <Skeleton className="h-4 w-40" />
+            </SelectTrigger>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            The base image used when provisioning cloud sandboxes.
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -113,6 +157,11 @@ export function PreferencesSection() {
   const [isSaving, setIsSaving] = useState(false);
 
   const models = modelsData?.models ?? [];
+  const selectedSnapshotPreset =
+    SANDBOX_SNAPSHOT_PRESET_OPTIONS.find(
+      (option) =>
+        option.id === (preferences?.defaultSandboxSnapshotPreset ?? "default"),
+    ) ?? SANDBOX_SNAPSHOT_PRESET_OPTIONS[0];
 
   const handleThemeChange = (nextTheme: string) => {
     if (isThemePreference(nextTheme)) {
@@ -150,6 +199,19 @@ export function PreferencesSection() {
       await updatePreferences({ defaultSandboxType: sandboxType });
     } catch (error) {
       console.error("Failed to update sandbox preference:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSandboxSnapshotPresetChange = async (
+    snapshotPreset: SandboxSnapshotPreset,
+  ) => {
+    setIsSaving(true);
+    try {
+      await updatePreferences({ defaultSandboxSnapshotPreset: snapshotPreset });
+    } catch (error) {
+      console.error("Failed to update sandbox snapshot preset:", error);
     } finally {
       setIsSaving(false);
     }
@@ -251,6 +313,42 @@ export function PreferencesSection() {
           </Select>
           <p className="text-xs text-muted-foreground">
             The execution environment for new sessions.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="sandbox-snapshot">Sandbox Snapshot</Label>
+          <Combobox
+            items={SANDBOX_SNAPSHOT_PRESET_OPTIONS}
+            value={selectedSnapshotPreset}
+            itemToStringValue={(option) => option.label}
+            disabled={isSaving}
+            onValueChange={(option) => {
+              void handleSandboxSnapshotPresetChange(option.id);
+            }}
+          >
+            <ComboboxInput
+              id="sandbox-snapshot"
+              placeholder="Select a snapshot preset"
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>No snapshot presets found.</ComboboxEmpty>
+              <ComboboxList>
+                {(option: (typeof SANDBOX_SNAPSHOT_PRESET_OPTIONS)[number]) => (
+                  <ComboboxItem key={option.id} value={option}>
+                    <Item size="xs" className="p-0">
+                      <ItemContent>
+                        <ItemTitle>{option.label}</ItemTitle>
+                        <ItemDescription>{option.description}</ItemDescription>
+                      </ItemContent>
+                    </Item>
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+          <p className="text-xs text-muted-foreground">
+            The base image used when provisioning cloud sandboxes.
           </p>
         </div>
       </CardContent>

@@ -299,6 +299,9 @@ export const userPreferences = pgTable("user_preferences", {
   defaultSandboxType: text("default_sandbox_type", {
     enum: ["hybrid", "vercel", "just-bash"],
   }).default("vercel"),
+  defaultSandboxSnapshotPreset: text("default_sandbox_snapshot_preset", {
+    enum: ["default", "browser"],
+  }).default("default"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

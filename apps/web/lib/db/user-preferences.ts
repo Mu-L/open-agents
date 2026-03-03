@@ -3,17 +3,20 @@ import { userPreferences } from "./schema";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { SandboxType } from "@/components/sandbox-selector-compact";
+import type { SandboxSnapshotPreset } from "@/lib/sandbox/config";
 
 export interface UserPreferencesData {
   defaultModelId: string;
   defaultSubagentModelId: string | null;
   defaultSandboxType: SandboxType;
+  defaultSandboxSnapshotPreset: SandboxSnapshotPreset;
 }
 
 const DEFAULT_PREFERENCES: UserPreferencesData = {
   defaultModelId: "anthropic/claude-haiku-4.5",
   defaultSubagentModelId: null,
   defaultSandboxType: "vercel",
+  defaultSandboxSnapshotPreset: "default",
 };
 
 /**
@@ -36,6 +39,9 @@ export async function getUserPreferences(
       defaultSandboxType:
         (existing.defaultSandboxType as SandboxType) ??
         DEFAULT_PREFERENCES.defaultSandboxType,
+      defaultSandboxSnapshotPreset:
+        (existing.defaultSandboxSnapshotPreset as SandboxSnapshotPreset) ??
+        DEFAULT_PREFERENCES.defaultSandboxSnapshotPreset,
     };
   }
 
@@ -72,6 +78,9 @@ export async function updateUserPreferences(
       defaultSandboxType:
         (updated?.defaultSandboxType as SandboxType) ??
         DEFAULT_PREFERENCES.defaultSandboxType,
+      defaultSandboxSnapshotPreset:
+        (updated?.defaultSandboxSnapshotPreset as SandboxSnapshotPreset) ??
+        DEFAULT_PREFERENCES.defaultSandboxSnapshotPreset,
     };
   }
 
@@ -86,6 +95,9 @@ export async function updateUserPreferences(
       defaultSubagentModelId: updates.defaultSubagentModelId ?? null,
       defaultSandboxType:
         updates.defaultSandboxType ?? DEFAULT_PREFERENCES.defaultSandboxType,
+      defaultSandboxSnapshotPreset:
+        updates.defaultSandboxSnapshotPreset ??
+        DEFAULT_PREFERENCES.defaultSandboxSnapshotPreset,
     })
     .returning();
 
@@ -96,5 +108,8 @@ export async function updateUserPreferences(
     defaultSandboxType:
       (created?.defaultSandboxType as SandboxType) ??
       DEFAULT_PREFERENCES.defaultSandboxType,
+    defaultSandboxSnapshotPreset:
+      (created?.defaultSandboxSnapshotPreset as SandboxSnapshotPreset) ??
+      DEFAULT_PREFERENCES.defaultSandboxSnapshotPreset,
   };
 }
