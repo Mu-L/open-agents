@@ -2226,6 +2226,10 @@ export function SessionChatContent(_props: unknown) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={handleMobileNewChat}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Chat
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => setMobileChatDrawerOpen(true)}
                   >
