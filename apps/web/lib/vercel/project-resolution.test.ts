@@ -55,7 +55,9 @@ globalThis.fetch = (async (
   }
 
   if (parsed.pathname === "/v10/projects") {
-    const scopeKey = parsed.searchParams.get("teamId") ?? "personal";
+    const teamId = parsed.searchParams.get("teamId");
+    const slug = parsed.searchParams.get("slug");
+    const scopeKey = teamId ?? (slug ? `slug:${slug}` : "personal");
     const response =
       projectApiResponsesByScope[scopeKey] ?? EMPTY_PROJECTS_RESPONSE;
     return toResponse(response);
@@ -105,17 +107,21 @@ describe("resolveVercelProject", () => {
       expect(result.reason).toBe("project_unresolved");
     }
 
-    expect(fetchCalls.length).toBe(3);
+    expect(fetchCalls.length).toBe(4);
     expect(fetchCalls[0]!.url).toContain("/v2/teams");
     const personalCall = fetchCalls.find(
       (call) =>
-        call.url.includes("/v10/projects") && !call.url.includes("teamId="),
+        call.url.includes("/v10/projects") &&
+        !call.url.includes("teamId=") &&
+        !call.url.includes("slug="),
     );
     expect(personalCall?.url).toContain("repo=acme%2Fapp");
     expect(personalCall?.url).toContain("repoType=github");
     expect(personalCall?.init?.headers).toEqual({
       Authorization: "Bearer tok_test",
     });
+    const slugCall = fetchCalls.find((call) => call.url.includes("slug=acme"));
+    expect(slugCall).toBeDefined();
     const teamCall = fetchCalls.find((call) =>
       call.url.includes("teamId=team_1"),
     );
@@ -195,6 +201,92 @@ describe("resolveVercelProject", () => {
     expect(teamCall).toBeDefined();
   });
 
+  test("resolves project from owner slug scope without team membership", async () => {
+    projectApiResponsesByScope = {
+      personal: { ok: true, status: 200, body: { projects: [] } },
+      "slug:vercel-labs": {
+        ok: true,
+        status: 200,
+        body: {
+          projects: [
+            {
+              id: "prj_slug",
+              name: "open-harness",
+              accountId: "team_999",
+            },
+          ],
+        },
+      },
+    };
+
+    const result = await resolveVercelProject({
+      vercelToken: "tok_test",
+      repoOwner: "vercel-labs",
+      repoName: "open-harness",
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.project.projectId).toBe("prj_slug");
+      expect(result.project.orgSlug).toBe("vercel-labs");
+    }
+
+    const slugCall = fetchCalls.find((call) =>
+      call.url.includes("slug=vercel-labs"),
+    );
+    expect(slugCall).toBeDefined();
+  });
+
+  test("dedupes duplicate project ids across all scopes", async () => {
+    teamsApiResponse = {
+      ok: true,
+      status: 200,
+      body: { teams: [{ id: "team_1", slug: "acme" }] },
+    };
+
+    projectApiResponsesByScope = {
+      personal: {
+        ok: true,
+        status: 200,
+        body: {
+          projects: [
+            { id: "prj_shared", name: "app", accountId: "team_1" },
+          ],
+        },
+      },
+      "slug:acme": {
+        ok: true,
+        status: 200,
+        body: {
+          projects: [
+            { id: "prj_shared", name: "app", accountId: "team_1" },
+          ],
+        },
+      },
+      team_1: {
+        ok: true,
+        status: 200,
+        body: {
+          projects: [
+            { id: "prj_shared", name: "app", accountId: "team_1" },
+          ],
+        },
+      },
+    };
+
+    const result = await resolveVercelProject({
+      vercelToken: "tok_test",
+      repoOwner: "acme",
+      repoName: "app",
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.project.projectId).toBe("prj_shared");
+      expect(result.project.orgSlug).toBe("acme");
+    }
+  });
+
   test("returns project_ambiguous when multiple unique projects match", async () => {
     teamsApiResponse = {
       ok: true,
@@ -232,10 +324,17 @@ describe("resolveVercelProject", () => {
   });
 
   test("returns api_error when all project lookups fail", async () => {
-    projectApiResponsesByScope.personal = {
-      ok: false,
-      status: 403,
-      body: { error: "forbidden" },
+    projectApiResponsesByScope = {
+      personal: {
+        ok: false,
+        status: 403,
+        body: { error: "forbidden" },
+      },
+      "slug:acme": {
+        ok: false,
+        status: 403,
+        body: { error: "forbidden" },
+      },
     };
 
     const result = await resolveVercelProject({

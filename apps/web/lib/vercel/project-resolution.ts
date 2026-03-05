@@ -45,6 +45,12 @@ interface VercelTeamsListResponse {
   teams?: VercelTeamResponse[];
 }
 
+interface ProjectScope {
+  teamId?: string;
+  slug?: string;
+  teamSlug?: string;
+}
+
 type ScopedProjectResult =
   | { ok: true; projects: VercelProjectResponse[] }
   | { ok: false; status: number; message: string };
@@ -71,14 +77,18 @@ async function fetchProjectsForScope(params: {
   repoOwner: string;
   repoName: string;
   teamId?: string;
+  slug?: string;
 }): Promise<ScopedProjectResult> {
-  const { vercelToken, repoOwner, repoName, teamId } = params;
+  const { vercelToken, repoOwner, repoName, teamId, slug } = params;
 
   const url = new URL(`${VERCEL_API_BASE}/v10/projects`);
   url.searchParams.set("repo", `${repoOwner}/${repoName}`);
   url.searchParams.set("repoType", "github");
   if (teamId) {
     url.searchParams.set("teamId", teamId);
+  }
+  if (slug) {
+    url.searchParams.set("slug", slug);
   }
 
   const response = await fetch(url.toString(), {
@@ -104,8 +114,8 @@ async function fetchProjectsForScope(params: {
 /**
  * Resolve a Vercel project from a GitHub repository.
  *
- * Searches both personal scope and every accessible team scope so
- * repositories owned by orgs (e.g. vercel-labs/*) are resolvable.
+ * Searches personal scope, owner slug scope, and every accessible team scope
+ * so repositories owned by orgs (e.g. vercel-labs/*) are resolvable.
  */
 export async function resolveVercelProject(params: {
   vercelToken: string;
@@ -116,10 +126,28 @@ export async function resolveVercelProject(params: {
 
   try {
     const teams = await listVercelTeams(vercelToken);
-    const scopes: Array<{ teamId?: string; teamSlug?: string }> = [
-      {},
-      ...teams.map((team) => ({ teamId: team.id, teamSlug: team.slug })),
-    ];
+
+    const scopes: ProjectScope[] = [];
+    const seenScopes = new Set<string>();
+
+    const addScope = (scope: ProjectScope) => {
+      const key = scope.teamId
+        ? `team:${scope.teamId}`
+        : scope.slug
+          ? `slug:${scope.slug}`
+          : "personal";
+      if (seenScopes.has(key)) {
+        return;
+      }
+      seenScopes.add(key);
+      scopes.push(scope);
+    };
+
+    addScope({});
+    addScope({ slug: repoOwner, teamSlug: repoOwner });
+    for (const team of teams) {
+      addScope({ teamId: team.id, teamSlug: team.slug });
+    }
 
     const projectsById = new Map<
       string,
@@ -135,13 +163,16 @@ export async function resolveVercelProject(params: {
         repoOwner,
         repoName,
         teamId: scope.teamId,
+        slug: scope.slug,
       });
 
       if (!result.ok) {
         lastErrorStatus = result.status;
         const scopeLabel = scope.teamId
           ? `teamId=${scope.teamId}`
-          : "personal scope";
+          : scope.slug
+            ? `slug=${scope.slug}`
+            : "personal scope";
         console.error(
           `[Vercel] Project resolution API error (${result.status}) for ${scopeLabel}: ${result.message}`,
         );
@@ -151,11 +182,17 @@ export async function resolveVercelProject(params: {
       hadSuccessfulQuery = true;
 
       for (const project of result.projects) {
-        if (!projectsById.has(project.id)) {
+        const existing = projectsById.get(project.id);
+        if (!existing) {
           projectsById.set(project.id, {
             project,
             teamSlug: scope.teamSlug,
           });
+          continue;
+        }
+
+        if (!existing.teamSlug && scope.teamSlug) {
+          existing.teamSlug = scope.teamSlug;
         }
       }
     }
