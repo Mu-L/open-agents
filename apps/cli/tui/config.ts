@@ -1,5 +1,5 @@
 import type { ApprovalConfig } from "@open-harness/agent";
-import { openHarnessAgent } from "@open-harness/agent";
+import { openHarnessAgent, serializeSandboxConfig } from "@open-harness/agent";
 import type { Sandbox } from "@open-harness/sandbox";
 import type { TUIAgentCallOptions } from "./types";
 
@@ -20,7 +20,7 @@ export function createDefaultAgentOptions(
   approval: ApprovalConfig = defaultApprovalConfig,
 ): TUIAgentCallOptions {
   return {
-    sandbox,
+    sandboxConfig: serializeSandboxConfig(sandbox),
     approval,
   };
 }

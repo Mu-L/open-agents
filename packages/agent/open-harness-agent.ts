@@ -11,6 +11,10 @@ import { z } from "zod";
 import { addCacheControl } from "./context-management";
 import { aggressiveCompactContext } from "./context-management/aggressive-compaction";
 import { preparePromptForOpenAIReasoning } from "./openai-reasoning";
+import {
+  connectSandboxFromConfig,
+  sandboxConfigSchema,
+} from "./sandbox-config";
 
 import type { SkillMetadata } from "./skills/types";
 import { buildSystemPrompt } from "./system-prompt";
@@ -46,7 +50,7 @@ const compactionContextSchema = z.object({
 });
 
 const callOptionsSchema = z.object({
-  sandbox: z.custom<Sandbox>(),
+  sandboxConfig: sandboxConfigSchema,
   approval: approvalConfigSchema,
   model: z.custom<LanguageModel>().optional(),
   subagentModel: z.custom<LanguageModel>().optional(),
@@ -57,18 +61,34 @@ const callOptionsSchema = z.object({
 
 type CompactionContext = z.infer<typeof compactionContextSchema>;
 
+export type { OpenHarnessSandboxConfig } from "./sandbox-config";
+
 export type OpenHarnessAgentCallOptions = z.infer<typeof callOptionsSchema>;
+
+const runtimeContextSchema = z.object({
+  sandboxConfig: sandboxConfigSchema,
+  approval: approvalConfigSchema,
+  model: z.custom<LanguageModel>(),
+  subagentModel: z.custom<LanguageModel>().optional(),
+  customInstructions: z.string().optional(),
+  skills: z.custom<SkillMetadata[]>().optional(),
+  context: compactionContextSchema.optional(),
+  sandbox: z.custom<Sandbox>().optional(),
+});
+
+type AgentRuntimeContext = z.infer<typeof runtimeContextSchema>;
+
+function getRuntimeContext(
+  experimentalContext: unknown,
+): AgentRuntimeContext | undefined {
+  const parsed = runtimeContextSchema.safeParse(experimentalContext);
+  return parsed.success ? parsed.data : undefined;
+}
 
 function getCompactionContextFromExperimentalContext(
   experimentalContext: unknown,
 ): CompactionContext | undefined {
-  if (!experimentalContext || typeof experimentalContext !== "object") {
-    return undefined;
-  }
-
-  const contextValue = (experimentalContext as { context?: unknown }).context;
-  const parsed = compactionContextSchema.safeParse(contextValue);
-  return parsed.success ? parsed.data : undefined;
+  return getRuntimeContext(experimentalContext)?.context;
 }
 
 const DEFAULT_CONTEXT_LIMIT = 200_000;
@@ -148,7 +168,22 @@ export const openHarnessAgent = new ToolLoopAgent({
   tools,
   stopWhen: stepCountIs(200),
   callOptionsSchema,
-  prepareStep: ({ messages, model, steps, experimental_context }) => {
+  prepareStep: async ({ messages, model, steps, experimental_context }) => {
+    const runtimeContext = getRuntimeContext(experimental_context);
+    if (!runtimeContext) {
+      throw new Error(
+        "Open Harness agent missing runtime context. Ensure prepareCall sets sandboxConfig and approval.",
+      );
+    }
+
+    const sandbox =
+      runtimeContext.sandbox ??
+      (await connectSandboxFromConfig(runtimeContext.sandboxConfig));
+    const mode =
+      runtimeContext.approval.type === "background"
+        ? "background"
+        : "interactive";
+    const skills = runtimeContext.skills ?? [];
     const callContext =
       getCompactionContextFromExperimentalContext(experimental_context);
     const compactionTuning = resolveCompactionTuning(model);
@@ -166,38 +201,39 @@ export const openHarnessAgent = new ToolLoopAgent({
         }),
         model,
       }),
+      instructions: buildSystemPrompt({
+        cwd: sandbox.workingDirectory,
+        mode,
+        currentBranch: sandbox.currentBranch,
+        customInstructions: runtimeContext.customInstructions,
+        environmentDetails: sandbox.environmentDetails,
+        skills,
+        modelId: getModelId(model),
+      }),
+      experimental_context: {
+        ...runtimeContext,
+        model,
+        sandbox,
+      },
     };
   },
   prepareCall: ({ options, model, ...settings }) => {
     if (!options) {
       throw new Error(
-        "Open Harness agent requires call options with sandbox and approval config.",
+        "Open Harness agent requires call options with sandboxConfig and approval config.",
       );
     }
     const approval: ApprovalConfig = options.approval;
     const callModel = options.model ?? model;
     const subagentModel = options.subagentModel;
     const customInstructions = options.customInstructions;
-    const sandbox = options.sandbox;
+    const sandboxConfig = options.sandboxConfig;
     const skills = options.skills ?? [];
     const context = options.context;
     const preparedPrompt = preparePromptForOpenAIReasoning({
       model: callModel,
       messages: settings.messages,
       prompt: settings.prompt,
-    });
-
-    // Derive mode for system prompt (interactive vs background)
-    const mode = approval.type === "background" ? "background" : "interactive";
-
-    const instructions = buildSystemPrompt({
-      cwd: sandbox.workingDirectory,
-      mode,
-      currentBranch: sandbox.currentBranch,
-      customInstructions,
-      environmentDetails: sandbox.environmentDetails,
-      skills,
-      modelId: typeof callModel === "string" ? callModel : callModel.modelId,
     });
 
     return {
@@ -208,13 +244,13 @@ export const openHarnessAgent = new ToolLoopAgent({
         tools: settings.tools ?? tools,
         model: callModel,
       }),
-      instructions,
       experimental_context: {
-        sandbox,
+        sandboxConfig,
         approval,
         skills,
         model: callModel,
         subagentModel,
+        customInstructions,
         context,
       },
     };

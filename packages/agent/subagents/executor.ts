@@ -3,6 +3,10 @@ import type { LanguageModel } from "ai";
 import { gateway, stepCountIs, ToolLoopAgent } from "ai";
 import { z } from "zod";
 import { preparePromptForOpenAIReasoning } from "../openai-reasoning";
+import {
+  connectSandboxFromConfig,
+  sandboxConfigSchema,
+} from "../sandbox-config";
 import { bashTool } from "../tools/bash";
 import { globTool } from "../tools/glob";
 import { grepTool } from "../tools/grep";
@@ -59,10 +63,16 @@ You have full access to file operations (read, write, edit, grep, glob) and bash
 const callOptionsSchema = z.object({
   task: z.string().describe("Short description of the task"),
   instructions: z.string().describe("Detailed instructions for the task"),
-  sandbox: z
-    .custom<Sandbox>()
-    .describe("Sandbox for file system and shell operations"),
+  sandboxConfig: sandboxConfigSchema.describe(
+    "Serializable sandbox configuration for reconnecting this subagent",
+  ),
   model: z.custom<LanguageModel>().describe("Language model for this subagent"),
+});
+
+const runtimeContextSchema = z.object({
+  sandboxConfig: sandboxConfigSchema,
+  model: z.custom<LanguageModel>(),
+  sandbox: z.custom<Sandbox>().optional(),
 });
 
 export type ExecutorCallOptions = z.infer<typeof callOptionsSchema>;
@@ -81,8 +91,22 @@ export const executorSubagent = new ToolLoopAgent({
   },
   stopWhen: stepCountIs(100),
   callOptionsSchema,
+  prepareStep: async ({ experimental_context, ...settings }) => {
+    const runtimeContext = runtimeContextSchema.parse(experimental_context);
+    const sandbox =
+      runtimeContext.sandbox ??
+      (await connectSandboxFromConfig(runtimeContext.sandboxConfig));
+
+    return {
+      ...settings,
+      experimental_context: {
+        ...runtimeContext,
+        sandbox,
+        approval: { type: "delegated" as const },
+      },
+    };
+  },
   prepareCall: ({ options, ...settings }) => {
-    const sandbox = options.sandbox;
     const model = options.model ?? settings.model;
     const preparedPrompt = preparePromptForOpenAIReasoning({
       model,
@@ -109,8 +133,7 @@ ${options.instructions}
 - Complete the task fully before returning
 - Your final message MUST include both a **Summary** of what you did AND the **Answer** to the task`,
       experimental_context: {
-        sandbox,
-        approval: { type: "delegated" },
+        sandboxConfig: options.sandboxConfig,
         model,
       },
     };

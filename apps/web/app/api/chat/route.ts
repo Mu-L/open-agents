@@ -266,10 +266,15 @@ export async function POST(req: Request) {
   }
 
   // Connect sandbox (handles all modes, handoff, restoration)
-  const sandbox = await connectSandbox(sessionRecord.sandboxState, {
+  const sandboxConnectOptions = {
     env: githubToken ? { GITHUB_TOKEN: githubToken } : undefined,
     ports: DEFAULT_SANDBOX_PORTS,
-  });
+  };
+
+  const sandbox = await connectSandbox(
+    sessionRecord.sandboxState,
+    sandboxConnectOptions,
+  );
 
   if (githubToken && sessionRecord.repoOwner && sessionRecord.repoName) {
     const authUrl = `https://x-access-token:${githubToken}@github.com/${sessionRecord.repoOwner}/${sessionRecord.repoName}.git`;
@@ -533,7 +538,11 @@ export async function POST(req: Request) {
     result = await webAgent.stream({
       messages: modelMessages,
       options: {
-        sandbox,
+        sandboxConfig: {
+          kind: "state",
+          state: sessionRecord.sandboxState,
+          options: sandboxConnectOptions,
+        },
         model,
         subagentModel,
         context: compactionContext,

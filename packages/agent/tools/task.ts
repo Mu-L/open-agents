@@ -1,20 +1,21 @@
 import {
-  tool,
-  type ModelMessage,
-  type UIToolInvocation,
   type LanguageModelUsage,
+  type ModelMessage,
+  tool,
+  type UIToolInvocation,
 } from "ai";
 import { z } from "zod";
+import { serializeSandboxConfig } from "../sandbox-config";
 import { executorSubagent } from "../subagents/executor";
 import { explorerSubagent } from "../subagents/explorer";
 import type { ApprovalRule } from "../types";
+import { sumLanguageModelUsage } from "../usage";
 import {
   getApprovalContext,
-  getSubagentModel,
   getSandbox,
+  getSubagentModel,
   shouldAutoApprove,
 } from "./utils";
-import { sumLanguageModelUsage } from "../usage";
 
 const subagentTypeSchema = z.enum(["explorer", "executor"]);
 
@@ -159,7 +160,12 @@ NOTE: The executor subagent requires user approval before running because it has
     const result = await subagent.stream({
       prompt:
         "Complete this task and provide a summary of what you accomplished.",
-      options: { task, instructions, sandbox, model },
+      options: {
+        task,
+        instructions,
+        sandboxConfig: serializeSandboxConfig(sandbox),
+        model,
+      },
       abortSignal,
     });
 
