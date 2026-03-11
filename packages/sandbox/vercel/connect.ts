@@ -45,7 +45,10 @@ export async function connectVercel(
         hooks: options?.hooks,
         expiresAt: state.expiresAt,
         timeout: remainingTimeout,
+        ports: options?.ports,
       });
+
+      await sandbox.refreshMetadata();
 
       if (options?.hooks?.afterStart) {
         await options.hooks.afterStart(sandbox);

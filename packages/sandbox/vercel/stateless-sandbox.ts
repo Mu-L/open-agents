@@ -11,6 +11,7 @@ import {
   isSandboxUnavailableError,
   VercelApiError,
   VercelRestClient,
+  type VercelSandboxRouteData,
 } from "./rest-client";
 import type { VercelState } from "./state";
 
@@ -58,6 +59,8 @@ export interface StatelessVercelSandboxConfig {
   hooks?: SandboxHooks;
   expiresAt?: number;
   timeout?: number;
+  ports?: number[];
+  routes?: VercelSandboxRouteData[];
 }
 
 /**
@@ -72,26 +75,12 @@ export class StatelessVercelSandbox implements Sandbox {
   readonly hooks?: SandboxHooks;
   readonly currentBranch?: string;
 
-  readonly environmentDetails =
-    `- Ephemeral sandbox - all work is lost unless committed and pushed to git
-- Default workflow: create a new branch, commit changes, push, and open a PR (since the sandbox is ephemeral, this ensures work is preserved)
-- All bash commands already run in the working directory by default - never prepend \`cd <working-directory> &&\`; just run the command directly
-- Do NOT prefix any bash command with a \`cd\` to the working directory - commands like \`cd <working-directory> && npm test\` are WRONG; just use \`npm test\`
-- Use workspace-relative paths for read/write/search/edit operations
-- Git is already configured (user, email, remote auth) - no setup or verification needed
-- GitHub CLI (gh) is NOT available - use curl with the GitHub API to create PRs
-  Use the $GITHUB_TOKEN environment variable directly (do not paste the actual token):
-  curl -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/OWNER/REPO/pulls -d '{"title":"...","head":"branch","base":"main","body":"..."}'
-- Node.js runtime with npm/pnpm available
-- Bun and jq are preinstalled
-- Dependencies may not be installed. Before running project scripts (build, typecheck, lint, test), check if \`node_modules\` exists and run the package manager install command if needed (e.g. \`bun install\`, \`npm install\`)
-- This snapshot includes agent-browser; when validating UI or end-to-end behavior, start the dev server and use agent-browser against the local dev server URL
-- This sandbox already runs on Vercel; do not suggest deploying to Vercel just to obtain a shareable preview link`;
-
   private client: VercelRestClient;
   private isStopped = false;
   private _expiresAt?: number;
   private _timeout?: number;
+  private routes: VercelSandboxRouteData[];
+  private declaredPorts: number[];
 
   constructor(config: StatelessVercelSandboxConfig) {
     this.id = config.sandboxId;
@@ -99,6 +88,8 @@ export class StatelessVercelSandbox implements Sandbox {
     this.hooks = config.hooks;
     this._expiresAt = config.expiresAt;
     this._timeout = config.timeout;
+    this.routes = config.routes ?? [];
+    this.declaredPorts = config.ports ?? [];
 
     const auth = getVercelAuthContextFromOidcToken();
     this.client = new VercelRestClient({
@@ -117,6 +108,139 @@ export class StatelessVercelSandbox implements Sandbox {
 
   get timeout(): number | undefined {
     return this._timeout;
+  }
+
+  get environmentDetails(): string {
+    const host = this.host;
+    const previewPorts = this.getPreviewPorts();
+    const portPreviewLines =
+      previewPorts
+        .map((port) => {
+          try {
+            const url = this.domain(port);
+            return `  - Port ${port}: ${url}`;
+          } catch {
+            return undefined;
+          }
+        })
+        .filter((line): line is string => line !== undefined) ?? [];
+
+    const portLines = portPreviewLines.length
+      ? `\n- Dev server URLs for locally running servers (start a server on one of these ports, then share the URL with the user):\n${portPreviewLines.join("\n")}`
+      : "";
+
+    const hostLine = host ? `\n- Sandbox host: ${host}` : "";
+    const runtimeEnvLine =
+      host || previewPorts.length > 0
+        ? "\n- Runtime env vars for dev server URLs are injected into commands: SANDBOX_HOST and SANDBOX_URL_<PORT> (for routable ports)"
+        : "";
+
+    return `- Ephemeral sandbox - all work is lost unless committed and pushed to git
+- Default workflow: create a new branch, commit changes, push, and open a PR (since the sandbox is ephemeral, this ensures work is preserved)
+- All bash commands already run in the working directory by default - never prepend \`cd <working-directory> &&\`; just run the command directly
+- Do NOT prefix any bash command with a \`cd\` to the working directory - commands like \`cd <working-directory> && npm test\` are WRONG; just use \`npm test\`
+- Use workspace-relative paths for read/write/search/edit operations
+- Git is already configured (user, email, remote auth) - no setup or verification needed
+- GitHub CLI (gh) is NOT available - use curl with the GitHub API to create PRs
+  Use the $GITHUB_TOKEN environment variable directly (do not paste the actual token):
+  curl -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/OWNER/REPO/pulls -d '{"title":"...","head":"branch","base":"main","body":"..."}'
+- Node.js runtime with npm/pnpm available
+- Bun and jq are preinstalled
+- Dependencies may not be installed. Before running project scripts (build, typecheck, lint, test), check if \`node_modules\` exists and run the package manager install command if needed (e.g. \`bun install\`, \`npm install\`)
+- This snapshot includes agent-browser; when validating UI or end-to-end behavior, start the dev server and use agent-browser against the local dev server URL
+- This sandbox already runs on Vercel; do not suggest deploying to Vercel just to obtain a shareable preview link${hostLine}${portLines}${runtimeEnvLine}`;
+  }
+
+  get host(): string | undefined {
+    const defaultDomain = this.tryDomain(80);
+    if (defaultDomain) {
+      return new URL(defaultDomain).host;
+    }
+
+    for (const port of this.getPreviewPorts()) {
+      const portDomain = this.tryDomain(port);
+      if (portDomain) {
+        return new URL(portDomain).host;
+      }
+    }
+
+    return undefined;
+  }
+
+  domain(port: number): string {
+    const route = this.routes.find((entry) => entry.port === port);
+    if (!route) {
+      throw new Error(`No route for port ${port}`);
+    }
+
+    if (route.url && route.url.length > 0) {
+      return route.url;
+    }
+
+    return `https://${route.subdomain}.vercel.run`;
+  }
+
+  private tryDomain(port: number): string | undefined {
+    try {
+      return this.domain(port);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private getRoutePorts(): number[] {
+    return this.routes
+      .map((route) => route.port)
+      .filter((port) => Number.isInteger(port) && port > 0);
+  }
+
+  private getPreviewPorts(): number[] {
+    return Array.from(
+      new Set([...this.declaredPorts, ...this.getRoutePorts()]),
+    );
+  }
+
+  private getRuntimePreviewEnv(): Record<string, string> {
+    const runtimeEnv: Record<string, string> = {};
+    const host = this.host;
+    if (host) {
+      runtimeEnv.SANDBOX_HOST = host;
+    }
+
+    for (const port of this.getPreviewPorts()) {
+      const domain = this.tryDomain(port);
+      if (domain) {
+        runtimeEnv[`SANDBOX_URL_${port}`] = domain;
+      }
+    }
+
+    return runtimeEnv;
+  }
+
+  private getCommandEnv(): Record<string, string> | undefined {
+    const runtimePreviewEnv = this.getRuntimePreviewEnv();
+    if (!this.env && Object.keys(runtimePreviewEnv).length === 0) {
+      return undefined;
+    }
+
+    return {
+      ...this.env,
+      ...runtimePreviewEnv,
+    };
+  }
+
+  async refreshMetadata(): Promise<void> {
+    try {
+      const metadata = await this.client.getSandboxMetadata({
+        sandboxId: this.id,
+      });
+      this.routes = metadata.routes;
+      if (metadata.requestedStopAt !== undefined) {
+        this._expiresAt = metadata.requestedStopAt;
+      }
+    } catch {
+      // best-effort metadata refresh for prompt/runtime preview hints
+    }
   }
 
   async readFile(path: string, _encoding: "utf-8"): Promise<string> {
@@ -259,7 +383,7 @@ export class StatelessVercelSandbox implements Sandbox {
         sandboxId: this.id,
         command: "bash",
         args: ["-c", `cd "${escapedCwd}" && ${command}`],
-        env: this.env,
+        env: this.getCommandEnv(),
       });
       commandId = started.id;
 
@@ -345,7 +469,7 @@ export class StatelessVercelSandbox implements Sandbox {
       sandboxId: this.id,
       command: "bash",
       args: ["-c", `cd "${escapedCwd}" && ${command}`],
-      env: this.env,
+      env: this.getCommandEnv(),
     });
 
     const quickAbort = new AbortController();

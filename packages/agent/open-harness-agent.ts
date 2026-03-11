@@ -190,7 +190,7 @@ export const openHarnessAgent = new ToolLoopAgent({
       runtimeContext.sandbox?.environmentDetails ??
       runtimeContext.environmentDetails;
     const mode =
-      runtimeContext.approval.type === "background" && currentBranch
+      runtimeContext.approval.type === "background"
         ? "background"
         : "interactive";
     const skills = runtimeContext.skills ?? [];
@@ -211,7 +211,7 @@ export const openHarnessAgent = new ToolLoopAgent({
         }),
         model,
       }),
-      instructions: buildSystemPrompt({
+      system: buildSystemPrompt({
         cwd: workingDirectory,
         mode,
         currentBranch,

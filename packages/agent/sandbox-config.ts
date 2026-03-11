@@ -55,6 +55,13 @@ export const sandboxConnectOptionsSchema = z.object({
   baseSnapshotId: z.string().min(1).optional(),
 });
 
+const sandboxRuntimeHintsSchema = z.object({
+  host: z.string().min(1).optional(),
+  previewUrlsByPort: z.record(z.string(), z.string().min(1)).optional(),
+});
+
+type SandboxRuntimeHints = z.infer<typeof sandboxRuntimeHintsSchema>;
+
 export const sandboxConfigSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("local"),
@@ -65,10 +72,77 @@ export const sandboxConfigSchema = z.discriminatedUnion("kind", [
     kind: z.literal("state"),
     state: sandboxStateSchema,
     options: sandboxConnectOptionsSchema.optional(),
+    runtimeHints: sandboxRuntimeHintsSchema.optional(),
   }),
 ]);
 
 export type OpenHarnessSandboxConfig = z.infer<typeof sandboxConfigSchema>;
+
+function appendRuntimeHintsToEnvironmentDetails(
+  baseDetails: string,
+  runtimeHints?: SandboxRuntimeHints,
+): string {
+  if (!runtimeHints) {
+    return baseDetails;
+  }
+
+  const host = runtimeHints.host?.trim();
+  const previewUrlsByPort = runtimeHints.previewUrlsByPort;
+
+  const portLines: string[] = [];
+  if (previewUrlsByPort) {
+    const sortedEntries = Object.entries(previewUrlsByPort).toSorted(
+      ([leftPort], [rightPort]) => {
+        const left = Number(leftPort);
+        const right = Number(rightPort);
+        const leftIsNumber = Number.isFinite(left);
+        const rightIsNumber = Number.isFinite(right);
+
+        if (leftIsNumber && rightIsNumber) {
+          return left - right;
+        }
+        if (leftIsNumber) {
+          return -1;
+        }
+        if (rightIsNumber) {
+          return 1;
+        }
+        return leftPort.localeCompare(rightPort);
+      },
+    );
+
+    for (const [port, url] of sortedEntries) {
+      const trimmedUrl = url.trim();
+      if (trimmedUrl.length === 0) {
+        continue;
+      }
+
+      const numericPort = Number(port);
+      if (Number.isFinite(numericPort)) {
+        portLines.push(`  - Port ${numericPort}: ${trimmedUrl}`);
+        continue;
+      }
+
+      portLines.push(`  - ${port}: ${trimmedUrl}`);
+    }
+  }
+
+  if (!host && portLines.length === 0) {
+    return baseDetails;
+  }
+
+  const hostLine = host ? `\n- Sandbox host: ${host}` : "";
+  const previewLines =
+    portLines.length > 0
+      ? `\n- Dev server URLs for locally running servers (start a server on one of these ports, then share the URL with the user):\n${portLines.join("\n")}`
+      : "";
+  const runtimeEnvLine =
+    host || portLines.length > 0
+      ? "\n- Runtime env vars for dev server URLs are injected into commands: SANDBOX_HOST and SANDBOX_URL_<PORT> (for routable ports)"
+      : "";
+
+  return `${baseDetails}${hostLine}${previewLines}${runtimeEnvLine}`;
+}
 
 function isVercelState(
   state: SandboxState,
@@ -129,12 +203,18 @@ export function getEnvironmentDetailsFromSandboxConfig(
 
   const state = sandboxConfig.state;
   if (isVercelState(state)) {
-    return CLOUD_ENVIRONMENT_DETAILS;
+    return appendRuntimeHintsToEnvironmentDetails(
+      CLOUD_ENVIRONMENT_DETAILS,
+      sandboxConfig.runtimeHints,
+    );
   }
 
   if (isHybridState(state)) {
     if (state.sandboxId && !state.files) {
-      return CLOUD_ENVIRONMENT_DETAILS;
+      return appendRuntimeHintsToEnvironmentDetails(
+        CLOUD_ENVIRONMENT_DETAILS,
+        sandboxConfig.runtimeHints,
+      );
     }
     return IN_MEMORY_ENVIRONMENT_DETAILS;
   }

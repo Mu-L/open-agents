@@ -5,7 +5,11 @@ import {
   gateway,
   sumLanguageModelUsage,
 } from "@open-harness/agent";
-import { connectSandbox, type SandboxState } from "@open-harness/sandbox";
+import {
+  connectSandbox,
+  type Sandbox,
+  type SandboxState,
+} from "@open-harness/sandbox";
 import {
   convertToModelMessages,
   type GatewayModelId,
@@ -101,6 +105,45 @@ function extractLastInputTokensFromMessages(
   }
 
   return undefined;
+}
+
+function getSandboxRuntimeHints(
+  sandbox: Sandbox,
+  ports: number[],
+):
+  | {
+      host?: string;
+      previewUrlsByPort?: Record<string, string>;
+    }
+  | undefined {
+  const host =
+    typeof sandbox.host === "string" && sandbox.host.trim().length > 0
+      ? sandbox.host.trim()
+      : undefined;
+
+  const previewUrlsByPort: Record<string, string> = {};
+  if (typeof sandbox.domain === "function") {
+    for (const port of ports) {
+      try {
+        const url = sandbox.domain(port);
+        if (url.trim().length > 0) {
+          previewUrlsByPort[String(port)] = url;
+        }
+      } catch {
+        // Skip unroutable ports.
+      }
+    }
+  }
+
+  const hasPreviewUrls = Object.keys(previewUrlsByPort).length > 0;
+  if (!host && !hasPreviewUrls) {
+    return undefined;
+  }
+
+  return {
+    ...(host ? { host } : {}),
+    ...(hasPreviewUrls ? { previewUrlsByPort } : {}),
+  };
 }
 
 const STREAM_TOKEN_SEPARATOR = ":";
@@ -274,6 +317,10 @@ export async function POST(req: Request) {
   const sandbox = await connectSandbox(
     sessionRecord.sandboxState,
     sandboxConnectOptions,
+  );
+  const sandboxRuntimeHints = getSandboxRuntimeHints(
+    sandbox,
+    sandboxConnectOptions.ports ?? [],
   );
 
   if (githubToken && sessionRecord.repoOwner && sessionRecord.repoName) {
@@ -542,6 +589,7 @@ export async function POST(req: Request) {
           kind: "state",
           state: sessionRecord.sandboxState,
           options: sandboxConnectOptions,
+          ...(sandboxRuntimeHints ? { runtimeHints: sandboxRuntimeHints } : {}),
         },
         model,
         subagentModel,

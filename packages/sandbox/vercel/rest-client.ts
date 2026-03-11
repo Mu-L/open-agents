@@ -19,6 +19,19 @@ export {
   isSandboxUnavailableError,
   VercelApiError,
 } from "./rest-shared";
+
+export interface VercelSandboxRouteData {
+  url: string;
+  subdomain: string;
+  port: number;
+}
+
+export interface VercelSandboxMetadata {
+  routes: VercelSandboxRouteData[];
+  requestedStopAt?: number;
+  cwd?: string;
+}
+
 export class VercelRestClient {
   private token: string;
   private teamId?: string;
@@ -404,5 +417,61 @@ export class VercelRestClient {
     }
 
     return { snapshotId: id };
+  }
+
+  async getSandboxMetadata(params: {
+    sandboxId: string;
+    signal?: AbortSignal;
+  }): Promise<VercelSandboxMetadata> {
+    const json = await this.requestJson(`/v1/sandboxes/${params.sandboxId}`, {
+      signal: params.signal,
+    });
+
+    if (!isRecord(json)) {
+      throw new Error("Invalid sandbox metadata payload");
+    }
+
+    const routesRaw = Array.isArray(json.routes) ? json.routes : [];
+    const routes: VercelSandboxRouteData[] = [];
+
+    for (const route of routesRaw) {
+      if (!isRecord(route)) {
+        continue;
+      }
+
+      const port = parseInteger(route.port);
+      const subdomain = route.subdomain;
+      const url = route.url;
+
+      if (
+        port === null ||
+        typeof subdomain !== "string" ||
+        subdomain.length === 0
+      ) {
+        continue;
+      }
+
+      routes.push({
+        port,
+        subdomain,
+        url:
+          typeof url === "string" && url.length > 0
+            ? url
+            : `https://${subdomain}.vercel.run`,
+      });
+    }
+
+    const sandbox = isRecord(json.sandbox) ? json.sandbox : undefined;
+    const requestedStopAt = sandbox
+      ? parseInteger(sandbox.requestedStopAt)
+      : null;
+    const cwd =
+      sandbox && typeof sandbox.cwd === "string" ? sandbox.cwd : undefined;
+
+    return {
+      routes,
+      ...(requestedStopAt !== null && { requestedStopAt }),
+      ...(cwd && { cwd }),
+    };
   }
 }

@@ -410,14 +410,24 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
   }
 
   if (options.mode === "background") {
-    if (!options.currentBranch) {
-      throw new Error("Background mode requires currentBranch to be set.");
-    }
+    const currentBranch = options.currentBranch?.trim();
+    const branchForPush =
+      currentBranch && currentBranch.length > 0
+        ? currentBranch
+        : "<current-branch>";
     const backgroundInstructions = BACKGROUND_MODE_INSTRUCTIONS.replace(
       "{branch}",
-      options.currentBranch,
+      branchForPush,
     );
-    parts.push(`\nCurrent branch: ${options.currentBranch}`);
+
+    if (currentBranch && currentBranch.length > 0) {
+      parts.push(`\nCurrent branch: ${currentBranch}`);
+    } else {
+      parts.push(
+        "\nCurrent branch: unknown. Determine it before your first push (for example: `git branch --show-current`).",
+      );
+    }
+
     parts.push(`\n${backgroundInstructions}`);
   }
 
