@@ -119,6 +119,35 @@ export default async function SessionChatPage({
   }
 
   const initialMessages = dbMessages.map((m) => m.parts as WebAgentUIMessage);
+
+  // Compute generation duration for each assistant message:
+  // duration = assistant.createdAt − preceding user.createdAt
+  const messageDurationMap: Record<string, number> = {};
+  // Also store the preceding user message's createdAt so that a currently-
+  // streaming message can show a live timer relative to when the user sent it.
+  const messageStartedAtMap: Record<string, string> = {};
+  for (let i = 0; i < dbMessages.length; i++) {
+    const m = dbMessages[i];
+    if (m.role === "assistant" && i > 0) {
+      const prev = dbMessages[i - 1];
+      if (prev && prev.role === "user") {
+        messageDurationMap[m.id] =
+          m.createdAt.getTime() - prev.createdAt.getTime();
+        messageStartedAtMap[m.id] = prev.createdAt.toISOString();
+      }
+    }
+  }
+
+  // Fallback for refresh-during-stream: the streaming assistant message may
+  // not be in the maps above (not yet persisted or different ID). Use the
+  // last user message's createdAt so the timer still starts from the right
+  // moment.
+  const lastUserMessage = dbMessages
+    .toReversed()
+    .find((m) => m.role === "user");
+  const lastUserMessageSentAt = lastUserMessage
+    ? lastUserMessage.createdAt.toISOString()
+    : null;
   const initialModelOptions = withMissingModelOption(
     buildSessionChatModelOptions(initialModels, preferences.modelVariants),
     chat.modelId,
@@ -139,6 +168,9 @@ export default async function SessionChatPage({
       >
         <SessionChatContent
           initialIsOnlyChatInSession={initialIsOnlyChatInSession}
+          messageDurationMap={messageDurationMap}
+          messageStartedAtMap={messageStartedAtMap}
+          lastUserMessageSentAt={lastUserMessageSentAt}
         />
       </SessionChatProvider>
     </DiffsProvider>
