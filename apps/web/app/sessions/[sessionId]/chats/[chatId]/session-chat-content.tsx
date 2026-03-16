@@ -115,7 +115,9 @@ import { streamdownPlugins } from "@/lib/streamdown-config";
 import { cn } from "@/lib/utils";
 import {
   type SandboxInfo,
-  useSessionChatContext,
+  useSessionChatMetadataContext,
+  useSessionChatRuntimeContext,
+  useSessionChatWorkspaceContext,
 } from "./session-chat-context";
 import { useStreamRecovery } from "./hooks/use-stream-recovery";
 import "streamdown/styles.css";
@@ -995,27 +997,11 @@ export function SessionChatContent({
   const {
     session,
     chatInfo,
-    chat,
-    contextLimit,
-    stopChatStream,
-    retryChatStream,
-    initialMessages,
-    sandboxInfo,
     setSandboxInfo,
     archiveSession,
     unarchiveSession,
     updateChatModel,
     updateSessionTitle,
-    hadInitialMessages,
-    diff,
-    refreshDiff,
-    gitStatus,
-    refreshGitStatus,
-    files,
-    filesLoading,
-    refreshFiles,
-    skills,
-    skillsLoading,
     preferredSandboxType,
     supportsDiff,
     supportsRepoCreation,
@@ -1031,7 +1017,27 @@ export function SessionChatContent({
     checkBranchAndPr,
     modelOptions,
     modelOptionsLoading,
-  } = useSessionChatContext();
+  } = useSessionChatMetadataContext();
+  const {
+    chat,
+    contextLimit,
+    stopChatStream,
+    retryChatStream,
+    hadInitialMessages,
+    initialMessages,
+  } = useSessionChatRuntimeContext();
+  const {
+    sandboxInfo,
+    diff,
+    refreshDiff,
+    gitStatus,
+    refreshGitStatus,
+    files,
+    filesLoading,
+    refreshFiles,
+    skills,
+    skillsLoading,
+  } = useSessionChatWorkspaceContext();
   const {
     messages,
     error,
@@ -1451,6 +1457,24 @@ export function SessionChatContent({
   const hasMessageActionInFlight =
     deletingMessageId !== null || resendingMessageId !== null || isChatInFlight;
 
+  const sendMessageWithPendingState = useCallback(
+    async (message: Parameters<typeof sendMessage>[0]) => {
+      setHasPendingResponse(true);
+      lastSendTimestampRef.current = Date.now();
+      hasSeenAssistantRenderableContentRef.current = false;
+      void setChatStreaming(chatInfo.id, true);
+
+      try {
+        await sendMessage(message);
+      } catch (error) {
+        setHasPendingResponse(false);
+        void setChatStreaming(chatInfo.id, false);
+        throw error;
+      }
+    },
+    [chatInfo.id, sendMessage, setChatStreaming],
+  );
+
   const handleDeleteUserMessage = useCallback(
     async (messageId: string) => {
       if (hasMessageActionInFlight) {
@@ -1571,21 +1595,10 @@ export function SessionChatContent({
         }
 
         setMessages(messages.slice(0, targetMessageIndex));
-        setHasPendingResponse(true);
-        lastSendTimestampRef.current = Date.now();
-        hasSeenAssistantRenderableContentRef.current = false;
-        void setChatStreaming(chatInfo.id, true);
-
-        try {
-          await sendMessage({
-            text: resendText,
-            files: resendFiles.length > 0 ? resendFiles : undefined,
-          });
-        } catch (err) {
-          setHasPendingResponse(false);
-          void setChatStreaming(chatInfo.id, false);
-          throw err;
-        }
+        await sendMessageWithPendingState({
+          text: resendText,
+          files: resendFiles.length > 0 ? resendFiles : undefined,
+        });
 
         await refreshChats();
       } catch (err) {
@@ -1603,8 +1616,7 @@ export function SessionChatContent({
       session.id,
       chatInfo.id,
       setMessages,
-      setChatStreaming,
-      sendMessage,
+      sendMessageWithPendingState,
       refreshChats,
     ],
   );
@@ -3189,12 +3201,11 @@ export function SessionChatContent({
                       });
                   }
                 }
-                setHasPendingResponse(true);
-                lastSendTimestampRef.current = Date.now();
-                hasSeenAssistantRenderableContentRef.current = false;
-                void setChatStreaming(chatInfo.id, true);
                 try {
-                  await sendMessage({ text: messageText, files });
+                  await sendMessageWithPendingState({
+                    text: messageText,
+                    files,
+                  });
                 } catch (err) {
                   if (pendingOptimisticTitleChatIdRef.current) {
                     void clearChatTitle(
@@ -3202,8 +3213,6 @@ export function SessionChatContent({
                     );
                     pendingOptimisticTitleChatIdRef.current = null;
                   }
-                  setHasPendingResponse(false);
-                  void setChatStreaming(chatInfo.id, false);
                   console.error("Failed to send message:", err);
                 }
               }}
@@ -3378,9 +3387,6 @@ export function SessionChatContent({
                       type="button"
                       size="icon"
                       onClick={() => {
-                        fetch(`/api/chat/${chatInfo.id}/stop`, {
-                          method: "POST",
-                        }).catch(() => {});
                         stopChatStream();
                         setHasPendingResponse(false);
                       }}
