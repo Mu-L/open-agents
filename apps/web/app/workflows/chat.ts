@@ -17,10 +17,8 @@ import {
   generateMessageId,
   hasChatStreamOwnership,
   runChatAgentStep,
-  sendError,
-  sendFinish,
-  sendStart,
 } from "./chat-steps";
+import { sendError, sendFinish, sendStart } from "./chat-stream-writer";
 
 export async function chatWorkflow(input: ChatWorkflowInput) {
   "use workflow";
@@ -80,6 +78,7 @@ export async function chatWorkflow(input: ChatWorkflowInput) {
       const stepResult = await runChatAgentStep({
         userId: input.userId,
         sessionId: input.sessionId,
+        chatId: input.chatId,
         model: input.model,
         subagentModel: input.subagentModel,
         messages: modelMessages,

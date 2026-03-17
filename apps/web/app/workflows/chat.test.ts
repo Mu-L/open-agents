@@ -91,6 +91,9 @@ mock.module("./chat-steps", () => ({
 
     return nextStepResult;
   },
+}));
+
+mock.module("./chat-stream-writer", () => ({
   sendError: async () => undefined,
   sendFinish: async (finishReason: string, metadata: unknown) => {
     sendFinishCalls.push({ finishReason, metadata });

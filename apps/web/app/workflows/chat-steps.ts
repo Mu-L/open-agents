@@ -23,6 +23,7 @@ import {
 import { recordUsage } from "@/lib/db/usage";
 import { buildActiveLifecycleUpdate } from "@/lib/sandbox/lifecycle";
 import { mergeLanguageModelUsage } from "./chat-shared";
+import { createChatStepLogger } from "./chat-step-logging";
 import { createChatStepAbortLifecycle } from "./chat-step-timeout";
 import {
   type ActiveSessionRecord,
@@ -86,6 +87,7 @@ export interface ChatAgentStepResult {
 export async function runChatAgentStep(params: {
   userId: string;
   sessionId: string;
+  chatId: string;
   model: AgentModelSelection;
   subagentModel?: AgentModelSelection;
   messages: ModelMessage[];
@@ -112,14 +114,31 @@ export async function runChatAgentStep(params: {
     }),
   ]);
 
+  const logger = createChatStepLogger({
+    chatId: params.chatId,
+    sessionId: params.sessionId,
+    assistantId: params.assistantId,
+    modelId: params.model.id,
+    ...(params.subagentModel
+      ? { subagentModelId: params.subagentModel.id }
+      : {}),
+  });
   let responseMessage: WebAgentUIMessage | undefined;
   let streamAborted = false;
   let streamedFinishReason: FinishReason | undefined;
+  let streamedPartCount = 0;
+  let firstPartType: string | null = null;
   const abortLifecycle = createChatStepAbortLifecycle();
   const writable = getWritable<UIMessageChunk<WebAgentMessageMetadata>>();
   const writer = writable.getWriter();
 
+  logger.log("step-start", {
+    inputMessageCount: params.messages.length,
+    originalMessageCount: params.originalMessages.length,
+  });
+
   try {
+    logger.log("agent-stream-start");
     const result = await webAgent.stream({
       messages: params.messages,
       options: {
@@ -139,6 +158,7 @@ export async function runChatAgentStep(params: {
       },
       abortSignal: abortLifecycle.signal,
     });
+    logger.log("agent-stream-opened");
 
     for await (const part of result.toUIMessageStream<WebAgentUIMessage>({
       originalMessages: params.originalMessages,
@@ -162,8 +182,21 @@ export async function runChatAgentStep(params: {
         streamedFinishReason = finishReason ?? (isAborted ? "stop" : undefined);
       },
     })) {
+      streamedPartCount += 1;
+      if (firstPartType === null) {
+        firstPartType = part.type;
+        logger.log("first-ui-chunk", { partType: part.type });
+      }
+
       await writer.write(part);
     }
+
+    logger.log("ui-stream-consumed", {
+      streamedPartCount,
+      firstPartType,
+      streamAborted,
+      streamedFinishReason,
+    });
 
     if (!responseMessage) {
       throw new Error("Agent stream finished without a response message");
@@ -171,6 +204,11 @@ export async function runChatAgentStep(params: {
 
     const sandboxState = sandbox.getState?.() as SandboxState | undefined;
     if (streamAborted) {
+      logger.log("step-aborted", {
+        streamedPartCount,
+        finishReason: streamedFinishReason ?? "stop",
+        sandboxStateAvailable: sandboxState !== undefined,
+      });
       return {
         responseMessage,
         responseMessages: [],
@@ -181,79 +219,53 @@ export async function runChatAgentStep(params: {
       };
     }
 
+    logger.log("await-response-messages-start");
+    const responseMessages = (await result.response).messages;
+    logger.log("await-response-messages-done", {
+      responseMessageCount: responseMessages.length,
+    });
+
+    logger.log("await-finish-reason-start");
+    const finishReason = await result.finishReason;
+    logger.log("await-finish-reason-done", { finishReason });
+
+    logger.log("await-usage-start");
+    const usage = await result.usage;
+    logger.log("await-usage-done", {
+      inputTokens: usage?.inputTokens,
+      outputTokens: usage?.outputTokens,
+      totalTokens: usage?.totalTokens,
+    });
+
+    logger.log("step-complete", {
+      streamedPartCount,
+      sandboxStateAvailable: sandboxState !== undefined,
+    });
+
     return {
       responseMessage,
-      responseMessages: (await result.response).messages,
-      finishReason: await result.finishReason,
-      usage: await result.usage,
+      responseMessages,
+      finishReason,
+      usage,
       sandboxState,
       aborted: false,
     };
+  } catch (error) {
+    logger.error("step-error", error, {
+      streamedPartCount,
+      firstPartType,
+      streamAborted,
+      streamedFinishReason,
+    });
+    throw error;
   } finally {
     abortLifecycle.cleanup();
     writer.releaseLock();
-  }
-}
-
-export async function sendStart(messageId: string): Promise<void> {
-  "use step";
-
-  const writer =
-    getWritable<UIMessageChunk<WebAgentMessageMetadata>>().getWriter();
-  try {
-    await writer.write({ type: "start", messageId });
-  } finally {
-    writer.releaseLock();
-  }
-}
-
-export async function sendError(errorText: string): Promise<void> {
-  "use step";
-
-  const writer =
-    getWritable<UIMessageChunk<WebAgentMessageMetadata>>().getWriter();
-  try {
-    await writer.write({ type: "error", errorText });
-  } finally {
-    writer.releaseLock();
-  }
-}
-
-export async function sendFinish(
-  finishReason: FinishReason,
-  metadata: WebAgentMessageMetadata,
-): Promise<void> {
-  "use step";
-
-  const writable = getWritable<UIMessageChunk<WebAgentMessageMetadata>>();
-  const writer = writable.getWriter();
-
-  try {
-    await writer.write({
-      type: "finish",
-      finishReason,
-      messageMetadata: metadata,
+    logger.log("step-finally", {
+      streamedPartCount,
+      streamAborted,
+      streamedFinishReason,
     });
-  } catch (error) {
-    if (
-      !(error instanceof TypeError) ||
-      !String(error.message).includes("WritableStream is closed")
-    ) {
-      throw error;
-    }
-  } finally {
-    writer.releaseLock();
-  }
-
-  try {
-    await writable.close();
-  } catch (error) {
-    if (
-      !(error instanceof TypeError) ||
-      !String(error.message).includes("WritableStream is closed")
-    ) {
-      throw error;
-    }
   }
 }
 
