@@ -137,10 +137,9 @@ export async function recordWorkflowUsage(
   "use step";
 
   try {
-    const {
-      collectTaskToolUsageEvents,
-      sumLanguageModelUsage,
-    } = await import("@open-harness/agent");
+    const { collectTaskToolUsageEvents, sumLanguageModelUsage } = await import(
+      "@open-harness/agent"
+    );
 
     // Record main agent usage
     if (totalUsage) {
@@ -219,9 +218,7 @@ export async function runAutoCommitStep(params: {
   "use step";
   try {
     const { connectSandbox } = await import("@open-harness/sandbox");
-    const { performAutoCommit } = await import(
-      "@/lib/chat/auto-commit-direct"
-    );
+    const { performAutoCommit } = await import("@/lib/chat/auto-commit-direct");
     const sandbox = await connectSandbox(params.sandboxState);
     await performAutoCommit({
       sandbox,

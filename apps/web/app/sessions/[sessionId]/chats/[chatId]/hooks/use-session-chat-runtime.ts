@@ -141,9 +141,7 @@ export function useSessionChatRuntime({
     void fetch(`/api/chat/${chatId}/stop`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        assistantMessage ? { assistantMessage } : {},
-      ),
+      body: JSON.stringify(assistantMessage ? { assistantMessage } : {}),
     }).catch(() => {});
 
     void chatInstance.stop();

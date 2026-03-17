@@ -157,7 +157,11 @@ export async function computeAndCacheDiff(params: {
     cwd,
     30000,
   );
-  const numstatResult = await sandbox.exec(`git diff ${diffRef} --numstat`, cwd, 30000);
+  const numstatResult = await sandbox.exec(
+    `git diff ${diffRef} --numstat`,
+    cwd,
+    30000,
+  );
   // Parse name-status early so we can exclude generated/lock files from the
   // full diff. This avoids huge output that can truncate and lose diffs for
   // other files. We still get their stats from --name-status and --numstat.
@@ -176,11 +180,16 @@ export async function computeAndCacheDiff(params: {
     30000,
   );
   // Get staged file paths to determine staging status
-  const stagedResult = await sandbox.exec("git diff --cached --name-only", cwd, 30000);
+  const stagedResult = await sandbox.exec(
+    "git diff --cached --name-only",
+    cwd,
+    30000,
+  );
 
   // Check if git commands failed (e.g., not a git repo or ref doesn't exist)
   if (!nameStatusResult.success || !diffResult.success) {
-    const stderr = nameStatusResult.stderr || diffResult.stderr || "Unknown git error";
+    const stderr =
+      nameStatusResult.stderr || diffResult.stderr || "Unknown git error";
     if (isSandboxUnavailableError(stderr)) {
       throw new Error(stderr);
     }
@@ -192,7 +201,8 @@ export async function computeAndCacheDiff(params: {
   }
 
   if (!numstatResult.success || !untrackedResult.success) {
-    const stderr = numstatResult.stderr || untrackedResult.stderr || "Unknown git error";
+    const stderr =
+      numstatResult.stderr || untrackedResult.stderr || "Unknown git error";
     if (isSandboxUnavailableError(stderr)) {
       throw new Error(stderr);
     }

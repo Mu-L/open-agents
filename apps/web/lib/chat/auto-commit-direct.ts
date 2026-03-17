@@ -57,7 +57,11 @@ export async function performAutoCommit(
   // 3. Stage all changes
   const addResult = await sandbox.exec("git add -A", cwd, 10000);
   if (!addResult.success) {
-    return { committed: false, pushed: false, error: "Failed to stage changes" };
+    return {
+      committed: false,
+      pushed: false,
+      error: "Failed to stage changes",
+    };
   }
 
   // 4. Generate commit message

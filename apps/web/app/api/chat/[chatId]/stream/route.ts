@@ -43,7 +43,11 @@ export async function GET(_request: Request, context: RouteContext) {
     const run = getRun(runId);
     const status = await run.status;
 
-    if (status === "completed" || status === "cancelled" || status === "failed") {
+    if (
+      status === "completed" ||
+      status === "cancelled" ||
+      status === "failed"
+    ) {
       // Workflow is done — clear the stale activeStreamId.
       await updateChatActiveStreamId(chatId, null);
       return new Response(null, { status: 204 });
