@@ -4,17 +4,18 @@
 // response to hang. This wrapper adds proper cancel() handling and
 // treats AbortError / ResponseAborted as clean shutdown so disconnects
 // resolve gracefully.
+
+function closeController<T>(controller: ReadableStreamDefaultController<T>) {
+  try {
+    controller.close();
+  } catch {
+    // Ignore close races after cancellation.
+  }
+}
+
 export function createCancelableReadableStream<T>(source: ReadableStream<T>) {
   const reader = source.getReader();
   let isCancelled = false;
-
-  const closeController = (controller: ReadableStreamDefaultController<T>) => {
-    try {
-      controller.close();
-    } catch {
-      // Ignore close races after cancellation.
-    }
-  };
 
   const releaseReader = () => {
     try {

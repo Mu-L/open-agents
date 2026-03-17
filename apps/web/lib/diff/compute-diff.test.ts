@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import type { DiffResponse } from "./compute-diff";
 
 // ── Spy state ──────────────────────────────────────────────────────
 

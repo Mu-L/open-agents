@@ -23,6 +23,8 @@ let sessionRecord: TestSessionRecord | null;
 let chatRecord: TestChatRecord | null;
 let currentAuthSession: { user: { id: string } } | null;
 let isSandboxActive = true;
+let existingRunStatus: string = "completed";
+let compareAndSetResult = true;
 
 const originalFetch = globalThis.fetch;
 
@@ -42,8 +44,13 @@ mock.module("next/server", () => ({
 }));
 
 mock.module("ai", () => ({
-  createUIMessageStreamResponse: ({ stream }: { stream: ReadableStream }) =>
-    new Response(stream, { status: 200 }),
+  createUIMessageStreamResponse: ({
+    stream,
+    headers,
+  }: {
+    stream: ReadableStream;
+    headers?: Record<string, string>;
+  }) => new Response(stream, { status: 200, headers }),
 }));
 
 mock.module("workflow/api", () => ({
@@ -55,6 +62,16 @@ mock.module("workflow/api", () => ({
           controller.close();
         },
       }),
+  }),
+  getRun: () => ({
+    status: Promise.resolve(existingRunStatus),
+    getReadable: () =>
+      new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      }),
+    cancel: () => Promise.resolve(),
   }),
 }));
 
@@ -84,7 +101,7 @@ mock.module("@open-harness/sandbox", () => ({
 }));
 
 mock.module("@/lib/db/sessions", () => ({
-  compareAndSetChatActiveStreamId: async () => true,
+  compareAndSetChatActiveStreamId: async () => compareAndSetResult,
   createChatMessageIfNotExists: async () => undefined,
   getChatById: async () => chatRecord,
   getSessionById: async () => sessionRecord,
@@ -170,6 +187,8 @@ function createValidRequest() {
 describe("/api/chat route", () => {
   beforeEach(() => {
     isSandboxActive = true;
+    existingRunStatus = "completed";
+    compareAndSetResult = true;
     currentAuthSession = {
       user: {
         id: "user-1",
@@ -288,5 +307,54 @@ describe("/api/chat route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Sandbox not initialized",
     });
+  });
+
+  test("reconnects to existing running workflow instead of starting new one", async () => {
+    if (!chatRecord) throw new Error("chatRecord must be set");
+    chatRecord.activeStreamId = "wrun_existing-456";
+    existingRunStatus = "running";
+
+    const { POST } = await routeModulePromise;
+
+    const response = await POST(createValidRequest());
+
+    expect(response.ok).toBe(true);
+    // Should include the existing run ID header
+    expect(response.headers.get("x-workflow-run-id")).toBe("wrun_existing-456");
+  });
+
+  test("starts new workflow when existing run is completed", async () => {
+    if (!chatRecord) throw new Error("chatRecord must be set");
+    chatRecord.activeStreamId = "wrun_old-789";
+    existingRunStatus = "completed";
+
+    const { POST } = await routeModulePromise;
+
+    const response = await POST(createValidRequest());
+
+    expect(response.ok).toBe(true);
+    // Should get the new run ID, not the old one
+    expect(response.headers.get("x-workflow-run-id")).toBe("wrun_test-123");
+  });
+
+  test("returns 409 when CAS race is lost", async () => {
+    compareAndSetResult = false;
+    const { POST } = await routeModulePromise;
+
+    const response = await POST(createValidRequest());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Another workflow is already running for this chat",
+    });
+  });
+
+  test("includes x-workflow-run-id header on success", async () => {
+    const { POST } = await routeModulePromise;
+
+    const response = await POST(createValidRequest());
+
+    expect(response.ok).toBe(true);
+    expect(response.headers.get("x-workflow-run-id")).toBe("wrun_test-123");
   });
 });

@@ -169,16 +169,17 @@ describe("runAgentWorkflow", () => {
     await runAgentWorkflow(makeOptions());
 
     expect(spies.persistAssistantMessage).toHaveBeenCalledTimes(1);
-    expect(spies.persistAssistantMessage.mock.calls[0][0]).toBe("chat-1");
+    const paCalls = spies.persistAssistantMessage.mock.calls as unknown[][];
+    expect(paCalls[0][0]).toBe("chat-1");
   });
 
   test("records usage after run", async () => {
     await runAgentWorkflow(makeOptions());
 
     expect(spies.recordWorkflowUsage).toHaveBeenCalledTimes(1);
-    const [userId, modelId] = spies.recordWorkflowUsage.mock.calls[0];
-    expect(userId).toBe("user-1");
-    expect(modelId).toBe("gpt-4");
+    const rwCalls = spies.recordWorkflowUsage.mock.calls as unknown[][];
+    expect(rwCalls[0][0]).toBe("user-1");
+    expect(rwCalls[0][1]).toBe("gpt-4");
   });
 
   test("persists sandbox state when sandbox is present", async () => {

@@ -2,6 +2,20 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { LanguageModelUsage } from "ai";
 import type { WebAgentUIMessage } from "@/app/types";
 
+// Helper to create LanguageModelUsage with all required fields
+function makeUsage(
+  partial: Partial<LanguageModelUsage> &
+    Pick<LanguageModelUsage, "inputTokens" | "outputTokens" | "totalTokens">,
+): LanguageModelUsage {
+  return {
+    cachedInputTokens: 0,
+    reasoningTokens: 0,
+    inputTokenDetails: undefined,
+    outputTokenDetails: undefined,
+    ...partial,
+  } as LanguageModelUsage;
+}
+
 // ── Mutable spy state ──────────────────────────────────────────────
 
 let createChatMessageIfNotExistsResult: unknown = { id: "msg-1" };
@@ -253,8 +267,8 @@ describe("persistSandboxState", () => {
   });
 
   test("skips update when getState returns undefined", async () => {
-    spies.connectSandbox.mockImplementationOnce(() =>
-      Promise.resolve({ getState: () => undefined }),
+    spies.connectSandbox.mockImplementationOnce(
+      () => Promise.resolve({ getState: () => undefined }) as never,
     );
 
     await persistSandboxState("session-1", { type: "vercel" } as never);
@@ -297,20 +311,19 @@ describe("clearActiveStream", () => {
 
 describe("recordWorkflowUsage", () => {
   test("records main agent usage", async () => {
-    const usage: LanguageModelUsage = {
+    const usage = makeUsage({
       inputTokens: 100,
       outputTokens: 50,
       totalTokens: 150,
       cachedInputTokens: 10,
-      reasoningTokens: 0,
-    };
+    });
 
     await recordWorkflowUsage("user-1", "gpt-4", usage, makeAssistantMessage());
 
     expect(spies.recordUsage).toHaveBeenCalledTimes(1);
-    const call = spies.recordUsage.mock.calls[0];
-    expect(call[0]).toBe("user-1");
-    expect(call[1]).toMatchObject({
+    const calls = spies.recordUsage.mock.calls as unknown[][];
+    expect(calls[0][0]).toBe("user-1");
+    expect(calls[0][1]).toMatchObject({
       source: "web",
       agentType: "main",
       model: "gpt-4",
@@ -332,41 +345,32 @@ describe("recordWorkflowUsage", () => {
     const subEvents = [
       {
         modelId: "claude-3",
-        usage: {
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15,
-          reasoningTokens: 0,
-        },
+        usage: makeUsage({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
       },
       {
         modelId: "claude-3",
-        usage: {
+        usage: makeUsage({
           inputTokens: 20,
           outputTokens: 10,
           totalTokens: 30,
-          reasoningTokens: 0,
-        },
+        }),
       },
       {
         modelId: "gpt-4",
-        usage: {
+        usage: makeUsage({
           inputTokens: 30,
           outputTokens: 15,
           totalTokens: 45,
-          reasoningTokens: 0,
-        },
+        }),
       },
     ];
     spies.collectTaskToolUsageEvents.mockReturnValueOnce(subEvents);
 
-    const usage: LanguageModelUsage = {
+    const usage = makeUsage({
       inputTokens: 100,
       outputTokens: 50,
       totalTokens: 150,
-      cachedInputTokens: 0,
-      reasoningTokens: 0,
-    };
+    });
 
     await recordWorkflowUsage("user-1", "gpt-4", usage, makeAssistantMessage());
 
@@ -374,25 +378,21 @@ describe("recordWorkflowUsage", () => {
     expect(spies.recordUsage).toHaveBeenCalledTimes(3);
 
     // Check subagent calls
-    const subCalls = spies.recordUsage.mock.calls.filter(
+    const calls = spies.recordUsage.mock.calls as unknown[][];
+    const subCalls = calls.filter(
       (c) => (c[1] as { agentType: string }).agentType === "subagent",
     );
     expect(subCalls).toHaveLength(2);
 
     const models = subCalls.map((c) => (c[1] as { model: string }).model);
-    expect(models.sort()).toEqual(["claude-3", "gpt-4"]);
+    expect(models.toSorted()).toEqual(["claude-3", "gpt-4"]);
   });
 
   test("falls back to main modelId when event has no modelId", async () => {
     spies.collectTaskToolUsageEvents.mockReturnValueOnce([
       {
         modelId: undefined,
-        usage: {
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15,
-          reasoningTokens: 0,
-        },
+        usage: makeUsage({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
       },
     ]);
 
@@ -404,8 +404,8 @@ describe("recordWorkflowUsage", () => {
     );
 
     expect(spies.recordUsage).toHaveBeenCalledTimes(1);
-    const call = spies.recordUsage.mock.calls[0];
-    expect((call[1] as { model: string }).model).toBe("gpt-4");
+    const calls = spies.recordUsage.mock.calls as unknown[][];
+    expect((calls[0][1] as { model: string }).model).toBe("gpt-4");
   });
 
   test("does not throw on error", async () => {
@@ -413,13 +413,11 @@ describe("recordWorkflowUsage", () => {
       Promise.reject(new Error("Usage DB down")),
     );
 
-    const usage: LanguageModelUsage = {
+    const usage = makeUsage({
       inputTokens: 1,
       outputTokens: 1,
       totalTokens: 2,
-      cachedInputTokens: 0,
-      reasoningTokens: 0,
-    };
+    });
 
     await recordWorkflowUsage("user-1", "gpt-4", usage, makeAssistantMessage());
   });
