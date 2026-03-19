@@ -97,10 +97,10 @@ export async function POST(req: Request) {
     }),
   });
 
-  // Persist the latest user message immediately (fire-and-forget) so it's
-  // in the DB before the workflow starts. This ensures a page refresh
-  // during workflow queue time still shows the message.
-  void persistLatestUserMessage(chatId, messages);
+  // Persist the latest user message before starting the workflow. Awaiting
+  // ensures the message is durably saved even if the client disconnects
+  // (e.g. the user switches to another chat on a slow connection).
+  await persistLatestUserMessage(chatId, messages);
 
   const runtimePromise = createChatRuntime({
     userId,
