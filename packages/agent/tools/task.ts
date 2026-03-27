@@ -15,7 +15,7 @@ const subagentTypeSchema = z.enum(["explorer", "executor", "screencast"]);
 
 const taskInputSchema = z.object({
   subagentType: subagentTypeSchema.describe(
-    "Type of subagent: 'explorer' for read-only research, 'executor' for implementation tasks",
+    "Type of subagent: 'explorer' for read-only research, 'executor' for implementation tasks, 'screencast' for recording narrated browser demos",
   ),
   task: z
     .string()
@@ -63,6 +63,13 @@ SUBAGENT TYPES:
    - Tools: read, write, edit, grep, glob, bash
    - CAN create, modify, and delete files
    - Best for: Feature scaffolding, refactors, migrations, code generation
+
+3. **screencast** (RECORDING)
+   - Use for: Recording narrated browser demos with TTS voiceover
+   - Tools: bash (agent-browser + ffmpeg), synthesize_voiceover, upload_blob
+   - Records a browser session, generates speech from narration script, muxes audio, uploads to Vercel Blob
+   - Returns: public blob URL + PR-embeddable markdown with transcript
+   - Best for: Feature demos, visual walkthroughs, PR screencasts
 
 WHEN TO USE EXPLORER:
 - "Where is X implemented?"
