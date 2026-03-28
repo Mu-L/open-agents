@@ -136,8 +136,8 @@ export function TaskRenderer({
       ? "Explorer"
       : subagentType === "executor"
         ? "Executor"
-        : subagentType === "general"
-          ? "General"
+        : subagentType === "screencast"
+          ? "Screencast"
           : "Task";
 
   const hasExpandableContent =
