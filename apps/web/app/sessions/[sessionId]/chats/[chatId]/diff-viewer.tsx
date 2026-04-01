@@ -1,19 +1,19 @@
 "use client";
 
 import { PatchDiff } from "@pierre/diffs/react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   ChevronDown,
   ChevronRight,
   FileText,
   Loader2,
   RefreshCw,
+  XIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { DiffFile } from "@/app/api/sessions/[sessionId]/diff/route";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -221,44 +221,6 @@ export function DiffViewer({ open, onOpenChange }: DiffViewerProps) {
   const { preferences } = useUserPreferences();
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [diffStyle, setDiffStyle] = useState<DiffStyle>("unified");
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Radix Dialog's modal scroll-lock (react-remove-scroll + DismissableLayer's
-  // body pointer-events:none) can prevent native wheel-scrolling inside
-  // @pierre/diffs Shadow DOM elements.  The retargeted event.target at the
-  // document level confuses the scroll-allowance heuristic, causing
-  // preventDefault() before the browser can scroll the container.
-  //
-  // Fix: intercept wheel events on the scroll container in the *capture* phase,
-  // call preventDefault() + stopPropagation() ourselves, and programmatically
-  // scroll the container.  This runs before any library handler and guarantees
-  // scrolling always works regardless of focus or shadow-DOM retargeting.
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-
-    const onWheel = (e: WheelEvent) => {
-      const { deltaY } = e;
-      if (deltaY === 0) return;
-
-      const { scrollTop, scrollHeight, clientHeight } = el;
-      const maxScroll = scrollHeight - clientHeight;
-
-      // Already at the boundary — let the event propagate normally so the
-      // dialog overlay / body scroll-lock can handle it (e.g. rubber-band).
-      if (maxScroll <= 0) return;
-      if (deltaY < 0 && scrollTop <= 0) return;
-      if (deltaY > 0 && scrollTop >= maxScroll) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-      el.scrollTop += deltaY;
-    };
-
-    // Capture phase so we run before react-remove-scroll's bubble handler.
-    el.addEventListener("wheel", onWheel, { capture: true, passive: false });
-    return () => el.removeEventListener("wheel", onWheel, { capture: true });
-  }, []);
 
   // Show stale indicator if sandbox is offline (even if data came from a live fetch earlier)
   const showStaleIndicator = !sandboxInfo && diff !== null;
@@ -298,162 +260,181 @@ export function DiffViewer({ open, onOpenChange }: DiffViewerProps) {
     setDiffStyle(preferences?.defaultDiffMode ?? "unified");
   }, [open, isMobile, preferences?.defaultDiffMode]);
 
+  // Using modal={false} to avoid Radix Dialog's scroll-lock stack
+  // (react-remove-scroll + DismissableLayer body pointer-events:none)
+  // which blocks wheel-scrolling inside @pierre/diffs Shadow DOM elements.
+  // We provide our own visual overlay and close-on-click behavior instead.
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        showCloseButton
-        className="flex h-[90vh] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[calc(100vw-4rem)]"
-      >
-        <DialogHeader className="shrink-0 border-b border-border px-4 py-3">
-          <div className="flex items-center justify-between pr-8">
-            <div className="flex items-center gap-3">
-              <DialogTitle className="text-base font-medium">
-                Changes
-              </DialogTitle>
-              {diff && diff.summary.totalFiles > 0 && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-green-600 dark:text-green-500">
-                    +{diff.summary.totalAdditions}
-                  </span>
-                  <span className="text-red-600 dark:text-red-400">
-                    -{diff.summary.totalDeletions}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => refreshDiff()}
-                disabled={diffRefreshing || !sandboxInfo}
-                className="h-7 px-2 text-xs"
-                title="Refresh diff"
-              >
-                <RefreshCw
-                  className={cn("h-3 w-3", diffRefreshing && "animate-spin")}
-                />
-              </Button>
-              {/* Unified / Split toggle - hidden on mobile, unified forced */}
-              <div className="hidden items-center rounded-md border border-border md:flex">
-                <button
-                  type="button"
-                  onClick={() => setDiffStyle("unified")}
-                  className={cn(
-                    "rounded-l-md px-2.5 py-1 text-xs font-medium transition-colors",
-                    diffStyle === "unified"
-                      ? "bg-secondary text-secondary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  Unified
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDiffStyle("split")}
-                  className={cn(
-                    "rounded-r-md px-2.5 py-1 text-xs font-medium transition-colors",
-                    diffStyle === "split"
-                      ? "bg-secondary text-secondary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  Split
-                </button>
-              </div>
-              {diff && diff.files.length > 0 && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={expandAll}
-                    className="h-7 px-2 text-xs"
-                  >
-                    Expand all
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={collapseAll}
-                    className="h-7 px-2 text-xs"
-                  >
-                    Collapse
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-          <DialogDescription className="sr-only">
-            File changes diff viewer
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Staleness indicator */}
-        {showStaleIndicator ? <StaleBanner cachedAt={diffCachedAt} /> : null}
-
-        {/* Content */}
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} modal={false}>
+      <DialogPrimitive.Portal>
+        {/* Visual-only backdrop — no scroll lock, click to close */}
+        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
         <div
-          ref={scrollContainerRef}
-          className={cn(
-            "min-h-0 flex-1 overflow-y-auto",
-            showStaleIndicator && "opacity-90",
-          )}
-        >
-          {diffLoading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          )}
+          data-state={open ? "open" : "closed"}
+          className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+          onClick={() => onOpenChange(false)}
+        />
 
-          {diffError && (
-            <div className="px-4 py-8 text-center">
-              <p className="text-sm text-red-600 dark:text-red-400">
-                {diffError}
-              </p>
+        <DialogPrimitive.Content className="bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 flex h-[90vh] w-full max-w-[calc(100vw-2rem)] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-lg border p-0 shadow-lg duration-200 outline-none sm:max-w-[calc(100vw-4rem)]">
+          <DialogHeader className="shrink-0 border-b border-border px-4 py-3">
+            <div className="flex items-center justify-between pr-8">
+              <div className="flex items-center gap-3">
+                <DialogTitle className="text-base font-medium">
+                  Changes
+                </DialogTitle>
+                {diff && diff.summary.totalFiles > 0 && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-green-600 dark:text-green-500">
+                      +{diff.summary.totalAdditions}
+                    </span>
+                    <span className="text-red-600 dark:text-red-400">
+                      -{diff.summary.totalDeletions}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refreshDiff()}
+                  disabled={diffRefreshing || !sandboxInfo}
+                  className="h-7 px-2 text-xs"
+                  title="Refresh diff"
+                >
+                  <RefreshCw
+                    className={cn("h-3 w-3", diffRefreshing && "animate-spin")}
+                  />
+                </Button>
+                {/* Unified / Split toggle - hidden on mobile, unified forced */}
+                <div className="hidden items-center rounded-md border border-border md:flex">
+                  <button
+                    type="button"
+                    onClick={() => setDiffStyle("unified")}
+                    className={cn(
+                      "rounded-l-md px-2.5 py-1 text-xs font-medium transition-colors",
+                      diffStyle === "unified"
+                        ? "bg-secondary text-secondary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    Unified
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiffStyle("split")}
+                    className={cn(
+                      "rounded-r-md px-2.5 py-1 text-xs font-medium transition-colors",
+                      diffStyle === "split"
+                        ? "bg-secondary text-secondary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    Split
+                  </button>
+                </div>
+                {diff && diff.files.length > 0 && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={expandAll}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Expand all
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={collapseAll}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Collapse
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
-          )}
+            <DialogDescription className="sr-only">
+              File changes diff viewer
+            </DialogDescription>
+          </DialogHeader>
 
-          {!diffLoading && !diffError && diff && diff.files.length === 0 && (
-            <div className="px-4 py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                No changes detected
-              </p>
-            </div>
-          )}
+          {/* Staleness indicator */}
+          {showStaleIndicator ? <StaleBanner cachedAt={diffCachedAt} /> : null}
 
-          {!diffLoading && !diffError && diff && diff.files.length > 0 && (
-            <div>
-              {diff.files.map((file) => (
-                <FileEntry
-                  key={file.path}
-                  file={file}
-                  isExpanded={expandedFiles.has(file.path)}
-                  onToggle={() => toggleFile(file.path)}
-                  diffStyle={diffStyle}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+          {/* Content */}
+          <div
+            className={cn(
+              "min-h-0 flex-1 overflow-y-auto",
+              showStaleIndicator && "opacity-90",
+            )}
+          >
+            {diffLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
 
-        {/* Footer with file count and base ref */}
-        {diff && diff.files.length > 0 && (
-          <div className="flex shrink-0 items-center justify-between border-t border-border px-4 py-2 text-xs text-muted-foreground">
-            <span>
-              {diff.summary.totalFiles} file
-              {diff.summary.totalFiles !== 1 && "s"} changed
-            </span>
-            {diff.baseRef && (
-              <span>
-                vs{" "}
-                <span className="font-mono text-foreground/70">
-                  {diff.baseRef}
-                </span>
-              </span>
+            {diffError && (
+              <div className="px-4 py-8 text-center">
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {diffError}
+                </p>
+              </div>
+            )}
+
+            {!diffLoading && !diffError && diff && diff.files.length === 0 && (
+              <div className="px-4 py-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  No changes detected
+                </p>
+              </div>
+            )}
+
+            {!diffLoading && !diffError && diff && diff.files.length > 0 && (
+              <div>
+                {diff.files.map((file) => (
+                  <FileEntry
+                    key={file.path}
+                    file={file}
+                    isExpanded={expandedFiles.has(file.path)}
+                    onToggle={() => toggleFile(file.path)}
+                    diffStyle={diffStyle}
+                  />
+                ))}
+              </div>
             )}
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+
+          {/* Footer with file count and base ref */}
+          {diff && diff.files.length > 0 && (
+            <div className="flex shrink-0 items-center justify-between border-t border-border px-4 py-2 text-xs text-muted-foreground">
+              <span>
+                {diff.summary.totalFiles} file
+                {diff.summary.totalFiles !== 1 && "s"} changed
+              </span>
+              {diff.baseRef && (
+                <span>
+                  vs{" "}
+                  <span className="font-mono text-foreground/70">
+                    {diff.baseRef}
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Close button */}
+          <DialogPrimitive.Close
+            data-slot="dialog-close"
+            className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+          >
+            <XIcon />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
