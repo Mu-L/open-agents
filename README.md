@@ -1,5 +1,7 @@
 # Open Harness
 
+hello
+
 ## Setup
 
 ```bash
