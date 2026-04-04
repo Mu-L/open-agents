@@ -305,7 +305,7 @@ export function SubagentProfilesSection({
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Model follows the Subagent Model setting above.
+            Model: same as your default model.
           </p>
           <div className="flex flex-wrap gap-1.5">
             {builtInExplore.allowedTools.map((toolName) => (
@@ -351,7 +351,7 @@ export function SubagentProfilesSection({
 
         {draftProfiles.map((profile, profileIndex) => (
           <div
-            key={`${profile.id || "draft"}-${profileIndex}`}
+            key={profileIndex}
             className="grid gap-4 rounded-lg border border-border/70 p-4"
           >
             <div className="flex items-start justify-between gap-4">
