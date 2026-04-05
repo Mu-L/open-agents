@@ -113,7 +113,7 @@ IMPORTANT:
         return availableSkills.find(
           (availableSkill) =>
             availableSkill.name.toLowerCase() ===
-            configuredSkill.id.toLowerCase(),
+            configuredSkill.name.toLowerCase(),
         );
       })
       .filter(
@@ -121,20 +121,20 @@ IMPORTANT:
           skill !== undefined,
       );
 
-    const missingSkillIds = profile.skills
+    const missingSkillNames = profile.skills
       .filter(
         (configuredSkill) =>
           !resolvedSkills.some(
             (resolvedSkill) =>
               resolvedSkill.name.toLowerCase() ===
-              configuredSkill.id.toLowerCase(),
+              configuredSkill.name.toLowerCase(),
           ),
       )
-      .map((skill) => skill.id);
+      .map((skill) => skill.name);
 
-    if (missingSkillIds.length > 0) {
+    if (missingSkillNames.length > 0) {
       throw new Error(
-        `Subagent profile "${profile.id}" references unavailable skills: ${missingSkillIds.join(", ")}`,
+        `Subagent profile "${profile.id}" references unavailable skills: ${missingSkillNames.join(", ")}`,
       );
     }
 

@@ -2,7 +2,8 @@ import { z } from "zod";
 import type { OpenHarnessAgentModelInput } from "../model-selection";
 
 const SUBAGENT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const SUBAGENT_SKILL_ID_PATTERN = /^\S+$/;
+const SKILL_SOURCE_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const SKILL_NAME_PATTERN = /^\S+$/;
 
 export const subagentAllowedToolNameSchema = z.enum([
   "read",
@@ -19,27 +20,35 @@ export type SubagentAllowedToolName = z.infer<
 >;
 
 export const subagentSkillRefSchema = z.object({
-  id: z
+  source: z
     .string()
     .trim()
-    .min(1, "Skill id is required")
-    .regex(SUBAGENT_SKILL_ID_PATTERN, "Skill id cannot contain spaces"),
+    .min(1, "Repository source is required")
+    .regex(
+      SKILL_SOURCE_PATTERN,
+      "Repository source must be owner/repo format",
+    ),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Skill name is required")
+    .regex(SKILL_NAME_PATTERN, "Skill name cannot contain spaces"),
   args: z.string().trim().optional(),
 });
 
 export type SubagentSkillRef = z.infer<typeof subagentSkillRefSchema>;
 
 function dedupeSkillRefs(skills: SubagentSkillRef[]): SubagentSkillRef[] {
-  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
   const dedupedSkills: SubagentSkillRef[] = [];
 
   for (const skill of skills) {
-    const normalizedId = skill.id.toLowerCase();
-    if (seenIds.has(normalizedId)) {
+    const normalizedName = skill.name.toLowerCase();
+    if (seenNames.has(normalizedName)) {
       continue;
     }
 
-    seenIds.add(normalizedId);
+    seenNames.add(normalizedName);
     dedupedSkills.push(skill);
   }
 

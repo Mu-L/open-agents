@@ -69,10 +69,10 @@ function buildConfiguredSkillsPrompt(skills: SubagentSkillRef[]): string {
   const skillsList = skills
     .map((skill) => {
       if (!skill.args) {
-        return `- ${skill.id}`;
+        return `- ${skill.name}`;
       }
 
-      return `- ${skill.id} (args: ${skill.args})`;
+      return `- ${skill.name} (args: ${skill.args})`;
     })
     .join("\n");
 

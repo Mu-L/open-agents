@@ -146,6 +146,8 @@ function SubagentFormDialog({
         setSkills([]);
         setAllowedTools([...DEFAULT_ALLOWED_TOOLS]);
       }
+      setNewSkillSource("");
+      setNewSkillName("");
       setError(null);
     }
   }, [open, editingProfile, defaultModelId]);
@@ -160,21 +162,22 @@ function SubagentFormDialog({
     );
   };
 
+  const [newSkillSource, setNewSkillSource] = useState("");
+  const [newSkillName, setNewSkillName] = useState("");
+
   const handleAddSkill = () => {
-    setSkills((current) => [...current, { id: "" }]);
+    const source = newSkillSource.trim();
+    const skillName = newSkillName.trim();
+    if (!source || !skillName) {
+      return;
+    }
+    setSkills((current) => [...current, { source, name: skillName }]);
+    setNewSkillSource("");
+    setNewSkillName("");
   };
 
   const handleRemoveSkill = (skillIndex: number) => {
     setSkills((current) => current.filter((_, i) => i !== skillIndex));
-  };
-
-  const handleUpdateSkill = (
-    skillIndex: number,
-    nextSkill: SubagentSkillRef,
-  ) => {
-    setSkills((current) =>
-      current.map((s, i) => (i === skillIndex ? nextSkill : s)),
-    );
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -204,9 +207,10 @@ function SubagentFormDialog({
       model,
       customPrompt: customPrompt.trim(),
       skills: skills
-        .filter((s) => s.id.trim())
+        .filter((s) => s.source.trim() && s.name.trim())
         .map((s) => ({
-          id: s.id.trim(),
+          source: s.source.trim(),
+          name: s.name.trim(),
           ...(s.args?.trim() ? { args: s.args.trim() } : {}),
         })),
       allowedTools,
@@ -304,86 +308,109 @@ function SubagentFormDialog({
 
           {/* Skills */}
           <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <Label className="text-xs font-medium">Skills</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Install with{" "}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-                    npx skills add owner/name
-                  </code>
-                  , then reference by name.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddSkill}
-                disabled={isSaving}
-                className="h-7 text-xs"
-              >
-                Add skill
-              </Button>
-            </div>
+            <Label className="text-xs font-medium">Skills</Label>
+
             {skills.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground">
-                No skills configured.
+              <p className="text-[11px] italic text-muted-foreground">
+                No skills configured yet.
               </p>
-            ) : null}
-            {skills.map((skill, skillIndex) => (
-              <div
-                key={skillIndex}
-                className="grid gap-2 rounded-md border border-border/60 p-2.5 md:grid-cols-[1fr_1fr_auto]"
-              >
+            ) : (
+              <div className="space-y-1.5">
+                {skills.map((skill, skillIndex) => (
+                  <div
+                    key={skillIndex}
+                    className="flex items-center justify-between gap-2 rounded-md border border-border/60 px-2.5 py-1.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium">
+                        {skill.name}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {skill.source}
+                        {skill.args ? ` · ${skill.args}` : ""}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveSkill(skillIndex)}
+                      disabled={isSaving}
+                      className="h-7 shrink-0 text-xs text-muted-foreground hover:text-destructive"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="rounded-md border border-dashed border-border/80 p-2.5">
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
                 <div className="grid gap-1">
                   <Label className="text-[11px] text-muted-foreground">
-                    Name
+                    Repository source
                   </Label>
                   <Input
-                    value={skill.id}
-                    onChange={(event) =>
-                      handleUpdateSkill(skillIndex, {
-                        ...skill,
-                        id: event.target.value,
-                      })
-                    }
-                    placeholder="e.g. frontend-design"
+                    value={newSkillSource}
+                    onChange={(event) => setNewSkillSource(event.target.value)}
+                    placeholder="vercel/ai"
                     disabled={isSaving}
                     className="h-8 text-xs"
                   />
                 </div>
                 <div className="grid gap-1">
                   <Label className="text-[11px] text-muted-foreground">
-                    Args
+                    Skill name
                   </Label>
                   <Input
-                    value={skill.args ?? ""}
-                    onChange={(event) =>
-                      handleUpdateSkill(skillIndex, {
-                        ...skill,
-                        args: event.target.value,
-                      })
-                    }
-                    placeholder="--flag value"
+                    value={newSkillName}
+                    onChange={(event) => setNewSkillName(event.target.value)}
+                    placeholder="ai-sdk"
                     disabled={isSaving}
                     className="h-8 text-xs"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleAddSkill();
+                      }
+                    }}
                   />
                 </div>
                 <div className="flex items-end">
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="default"
                     size="sm"
-                    onClick={() => handleRemoveSkill(skillIndex)}
-                    disabled={isSaving}
-                    className="h-8 text-xs text-muted-foreground hover:text-destructive"
+                    onClick={handleAddSkill}
+                    disabled={
+                      isSaving ||
+                      !newSkillSource.trim() ||
+                      !newSkillName.trim()
+                    }
+                    className="h-8 text-xs"
                   >
-                    Remove
+                    <Plus className="size-3" />
+                    Add
                   </Button>
                 </div>
               </div>
-            ))}
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Enter the GitHub{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                  owner/repo
+                </code>{" "}
+                source and the skill name, e.g.{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                  vercel/ai
+                </code>
+                {" + "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                  ai-sdk
+                </code>
+                .
+              </p>
+            </div>
           </div>
 
           {/* Allowed tools */}

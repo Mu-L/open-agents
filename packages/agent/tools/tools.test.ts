@@ -626,7 +626,7 @@ describe("tools execute behavior", () => {
           name: "Frontend Design",
           model: "openai/gpt-5",
           customPrompt: "Focus on polished UI work.",
-          skills: [{ id: "frontend-design" }],
+          skills: [{ source: "vercel/design", name: "frontend-design" }],
           allowedTools: ["read", "write", "edit", "grep", "glob", "bash"],
           builtIn: false,
         },
