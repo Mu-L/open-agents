@@ -15,7 +15,8 @@ interface TestSessionRecord {
     | "failed";
   sandboxState: {
     type: "vercel";
-    sandboxId: string;
+    sandboxId?: string;
+    sandboxName?: string;
     expiresAt: number;
   };
   hibernateAfter: Date | null;
@@ -198,7 +199,39 @@ describe("evaluateSandboxLifecycle", () => {
       snapshotCreatedAt: null,
       sandboxState: {
         type: "vercel",
-        sandboxName: "sandbox-1",
+      },
+    });
+  });
+
+  test("preserves a persistent sandbox name when hibernating", async () => {
+    if (!sessionRecord) {
+      throw new Error("sessionRecord must be set");
+    }
+
+    sessionRecord = {
+      ...sessionRecord,
+      sandboxState: {
+        type: "vercel",
+        sandboxName: "session_session-1",
+        expiresAt: Date.now() + 120_000,
+      },
+    };
+
+    const result = await evaluateSandboxLifecycle(
+      "session-1",
+      "status-check-overdue",
+    );
+
+    expect(result).toEqual({ action: "hibernated" });
+
+    const updateCalls = spies.updateSession.mock.calls as unknown[][];
+    const finalPatch = updateCalls.at(-1)?.[1] as Record<string, unknown>;
+
+    expect(finalPatch).toMatchObject({
+      lifecycleState: "hibernated",
+      sandboxState: {
+        type: "vercel",
+        sandboxName: "session_session-1",
       },
     });
   });
@@ -224,7 +257,6 @@ describe("evaluateSandboxLifecycle", () => {
       snapshotCreatedAt: null,
       sandboxState: {
         type: "vercel",
-        sandboxName: "sandbox-1",
       },
     });
   });

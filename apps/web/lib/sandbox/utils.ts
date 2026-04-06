@@ -5,19 +5,39 @@ function hasNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
-function getSandboxNameFromUnknown(state: unknown): string | undefined {
+function getPersistentSandboxNameFromUnknown(
+  state: unknown,
+): string | undefined {
   if (!state || typeof state !== "object") {
     return undefined;
   }
 
   const sandboxState = state as {
     sandboxName?: unknown;
-    sandboxId?: unknown;
   };
 
   if (hasNonEmptyString(sandboxState.sandboxName)) {
     return sandboxState.sandboxName;
   }
+
+  return undefined;
+}
+
+function getRuntimeSandboxIdentifierFromUnknown(
+  state: unknown,
+): string | undefined {
+  const persistentSandboxName = getPersistentSandboxNameFromUnknown(state);
+  if (persistentSandboxName) {
+    return persistentSandboxName;
+  }
+
+  if (!state || typeof state !== "object") {
+    return undefined;
+  }
+
+  const sandboxState = state as {
+    sandboxId?: unknown;
+  };
 
   if (hasNonEmptyString(sandboxState.sandboxId)) {
     return sandboxState.sandboxId;
@@ -35,7 +55,7 @@ function getExpiresAt(state: SandboxState): number | undefined {
 export function getPersistentSandboxName(
   state: SandboxState | null | undefined,
 ): string | undefined {
-  return getSandboxNameFromUnknown(state);
+  return getPersistentSandboxNameFromUnknown(state);
 }
 
 /**
@@ -94,8 +114,8 @@ export function hasSavedSandboxState(
 export function hasRuntimeSandboxState(state: unknown): boolean {
   if (!state || typeof state !== "object") return false;
 
-  const sandboxName = getSandboxNameFromUnknown(state);
-  if (!sandboxName) {
+  const sandboxIdentifier = getRuntimeSandboxIdentifierFromUnknown(state);
+  if (!sandboxIdentifier) {
     return false;
   }
 
@@ -120,7 +140,7 @@ export function isSandboxUnavailableError(message: string): boolean {
 
 function hasRuntimeState(state: SandboxState): boolean {
   return (
-    getPersistentSandboxName(state) !== undefined &&
+    getRuntimeSandboxIdentifierFromUnknown(state) !== undefined &&
     getExpiresAt(state) !== undefined
   );
 }

@@ -231,13 +231,11 @@ describe("archiveSession", () => {
       lifecycleError: "Archive finalization failed: sandbox connection failed",
       sandboxState: {
         type: "vercel",
-        sandboxName: "sandbox-1",
       },
     });
 
     expect(sessionRecord?.sandboxState).toEqual({
       type: "vercel",
-      sandboxName: "sandbox-1",
     });
   });
 

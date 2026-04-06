@@ -158,7 +158,6 @@ describe("/api/sandbox/reconnect", () => {
     expect(updateCalls[0]?.patch.lifecycleError).toBeNull();
     expect(updateCalls[0]?.patch.sandboxState).toEqual({
       type: "vercel",
-      sandboxName: "sbx-1",
     });
   });
 
@@ -189,7 +188,6 @@ describe("/api/sandbox/reconnect", () => {
     expect(updateCalls[0]?.patch.lifecycleError).toBeNull();
     expect(updateCalls[0]?.patch.sandboxState).toEqual({
       type: "vercel",
-      sandboxName: "sbx-1",
     });
   });
 });

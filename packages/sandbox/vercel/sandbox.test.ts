@@ -36,6 +36,8 @@ let runCommandMock = async (
 let lastRunCommandEnv: Record<string, string> | undefined;
 let sdkStatus = "running";
 let sdkTimeoutMs = 300_000;
+let sdkSessionCreatedAtMs = Date.now();
+let sdkSessionTimeoutMs = 300_000;
 
 function domainForPort(port: number): string {
   if (missingPorts.has(port)) {
@@ -56,6 +58,10 @@ function buildMockSdkSandbox(identifier: string) {
     sandboxId: identifier,
     status: sdkStatus,
     timeout: sdkTimeoutMs,
+    currentSession: () => ({
+      createdAt: new Date(sdkSessionCreatedAtMs),
+      timeout: sdkSessionTimeoutMs,
+    }),
     routes: Array.from(portDomains.keys()).map((port) => {
       const domain = portDomains.get(port) ?? `https://sbx-${port}.vercel.run`;
       const subdomain = new URL(domain).host.replace(".vercel.run", "");
@@ -86,6 +92,7 @@ mock.module("@vercel/sandbox", () => ({
         typeof params.name === "string" ? params.name : "sbx-created";
       if (typeof params.timeout === "number") {
         sdkTimeoutMs = params.timeout;
+        sdkSessionTimeoutMs = params.timeout;
       }
       return buildMockSdkSandbox(identifier);
     },
@@ -118,6 +125,8 @@ beforeEach(() => {
   lastRunCommandEnv = undefined;
   sdkStatus = "running";
   sdkTimeoutMs = 300_000;
+  sdkSessionCreatedAtMs = Date.now();
+  sdkSessionTimeoutMs = 300_000;
 });
 
 describe("VercelSandbox.environmentDetails", () => {
@@ -194,6 +203,20 @@ describe("VercelSandbox.environmentDetails", () => {
     expect(lastRunCommandEnv?.SANDBOX_URL_3000).toBe(
       "https://sbx-3000.vercel.run",
     );
+  });
+});
+
+describe("VercelSandbox.connect", () => {
+  test("uses current session timeout and preserves the proactive buffer", async () => {
+    sdkTimeoutMs = 600_000;
+    sdkSessionCreatedAtMs = Date.now() - 60_000;
+    sdkSessionTimeoutMs = 330_000;
+
+    const sandbox = await sandboxModule.VercelSandbox.connect("sbx-test");
+    const remainingMs = (sandbox.expiresAt ?? 0) - Date.now();
+
+    expect(remainingMs).toBeGreaterThanOrEqual(238_000);
+    expect(remainingMs).toBeLessThanOrEqual(242_000);
   });
 });
 

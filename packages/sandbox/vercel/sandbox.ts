@@ -23,12 +23,17 @@ interface SandboxRouteLike {
   port: number;
 }
 
+type VercelSdkSessionLike = {
+  createdAt?: Date;
+  timeout?: number;
+};
+
 type VercelSdkSandboxLike = VercelSandboxSDK & {
   name?: string;
   sandboxId?: string;
   status?: string;
-  timeout?: number;
   routes?: SandboxRouteLike[];
+  currentSession?: () => VercelSdkSessionLike;
 };
 
 function getSdkSandboxIdentifier(sdk: VercelSdkSandboxLike): string {
@@ -47,10 +52,33 @@ function getSdkSandboxStatus(sdk: VercelSdkSandboxLike): string | undefined {
   return typeof sdk.status === "string" ? sdk.status : undefined;
 }
 
-function getSdkTimeoutMs(sdk: VercelSdkSandboxLike): number | undefined {
-  return typeof sdk.timeout === "number" && Number.isFinite(sdk.timeout)
-    ? sdk.timeout
-    : undefined;
+function getSdkCurrentSessionRemainingTimeoutMs(
+  sdk: VercelSdkSandboxLike,
+): number | undefined {
+  if (typeof sdk.currentSession !== "function") {
+    return undefined;
+  }
+
+  try {
+    const session = sdk.currentSession();
+    if (
+      !(session.createdAt instanceof Date) ||
+      typeof session.timeout !== "number" ||
+      !Number.isFinite(session.timeout)
+    ) {
+      return undefined;
+    }
+
+    return Math.max(
+      0,
+      session.createdAt.getTime() +
+        session.timeout -
+        Date.now() -
+        TIMEOUT_BUFFER_MS,
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 function buildAuthenticatedGitHubUrl(
@@ -589,7 +617,7 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
 
     const remainingTimeout =
       options.remainingTimeout ??
-      getSdkTimeoutMs(sdk) ??
+      getSdkCurrentSessionRemainingTimeoutMs(sdk) ??
       DEFAULT_RECONNECT_TIMEOUT_MS;
     const startTime = Date.now();
 
