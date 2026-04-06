@@ -11,7 +11,7 @@ export interface VercelState {
   sandboxName?: string;
   /**
    * Legacy sandbox identifier from the pre-persistent implementation.
-   * Existing Vercel sandboxes are backfilled so this can still be treated as a name.
+   * Existing sandboxes may still be addressable via this value while migrating.
    */
   sandboxId?: string;
   /** Legacy snapshot ID used only for one-time migration into a named sandbox */

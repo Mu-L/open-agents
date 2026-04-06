@@ -114,7 +114,7 @@ export async function POST(req: Request) {
 }
 
 /**
- * PUT - Restore a snapshot by creating a new sandbox from it.
+ * PUT - Resume a paused sandbox session, lazily migrating legacy snapshots when needed.
  */
 export async function PUT(req: Request) {
   const authResult = await requireAuthenticatedUser();
@@ -145,12 +145,9 @@ export async function PUT(req: Request) {
 
   const { sessionRecord } = sessionContext;
 
-  // If archive finalization is still running, return 409 until the background
-  // task either stores a snapshot or clears runtime sandbox state after a
-  // recoverable archive failure.
   if (!sessionRecord.sandboxState) {
     console.error(
-      `[Snapshot Restore] session=${sessionId} error=no_sandbox_state resumable=${hasResumableSandboxState(sessionRecord.sandboxState)}`,
+      `[Snapshot Restore] session=${sessionId} error=no_sandbox_state hasSavedSandbox=${Boolean(sessionRecord.snapshotUrl)}`,
     );
     return Response.json(
       { error: "No sandbox state available for restoration" },
@@ -202,7 +199,6 @@ export async function PUT(req: Request) {
     );
   }
 
-  // Warn if sandbox appears to still be running.
   if (canOperateOnSandbox(sessionRecord.sandboxState)) {
     console.log(
       `[Snapshot Restore] session=${sessionId} already_running=true sandboxType=${sandboxType}`,

@@ -567,7 +567,7 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       env?: Record<string, string>;
       hooks?: SandboxHooks;
       /**
-       * Remaining timeout in ms for this sandbox.
+       * Remaining timeout in ms for this sandbox session.
        * If not provided, we fall back to the SDK-reported timeout or a conservative default.
        */
       remainingTimeout?: number;
@@ -605,7 +605,6 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       options.ports,
     );
 
-    // Call afterStart hook if provided (useful for reconnection setup)
     if (options.hooks?.afterStart) {
       await options.hooks.afterStart(sandbox);
     }

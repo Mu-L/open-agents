@@ -52,8 +52,6 @@ export async function GET(req: Request): Promise<Response> {
   let effectiveSessionRecord = sessionRecord;
   const hasRuntimeState = hasRuntimeSandboxState(sessionRecord.sandboxState);
 
-  // Check expiry: the DB may still have sandboxId/files but the VM has expired.
-  // Use the same 10s buffer as the chat route's isSandboxActive() so they agree.
   let isExpired = false;
   if (hasRuntimeState && sessionRecord.sandboxExpiresAt) {
     isExpired =
@@ -63,8 +61,6 @@ export async function GET(req: Request): Promise<Response> {
 
   const isActive = hasRuntimeState && !isExpired;
 
-  // If the lifecycle evaluator previously failed but runtime state is still
-  // active, recover lifecycle state so UI does not get stuck in "Paused".
   if (isActive && sessionRecord.lifecycleState === "failed") {
     const recoveredSession = await updateSession(sessionRecord.id, {
       lifecycleState: "active",
@@ -76,8 +72,6 @@ export async function GET(req: Request): Promise<Response> {
     }
   }
 
-  // Safety net: if the sandbox has stale runtime state (expired or overdue for
-  // hibernation), kick the lifecycle to clean up DB state in the background.
   if (hasRuntimeState && effectiveSessionRecord.lifecycleState === "active") {
     const now = Date.now();
     const dueAtMs = getLifecycleDueAtMs(effectiveSessionRecord);

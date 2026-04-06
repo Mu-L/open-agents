@@ -80,7 +80,6 @@ export async function GET(req: Request): Promise<Response> {
     hasResumableSandboxState(sessionRecord.sandboxState) ||
     Boolean(sessionRecord.snapshotUrl);
 
-  // No runtime sandbox state in DB
   if (!hasRuntimeSandboxState(sessionRecord.sandboxState)) {
     console.log(
       `[Reconnect] session=${sessionId} status=no_sandbox hasSnapshot=${hasSavedSandbox} runtimeState=false`,
@@ -104,7 +103,6 @@ export async function GET(req: Request): Promise<Response> {
     } satisfies ReconnectResponse);
   }
 
-  // Connect and probe the persisted runtime sandbox state.
   try {
     const sandbox = await connectSandbox(state as SandboxState);
     const probe = await sandbox.exec("pwd", sandbox.workingDirectory, 15_000);
@@ -125,9 +123,7 @@ export async function GET(req: Request): Promise<Response> {
         ...state,
         ...(sandbox.expiresAt ? { expiresAt: sandbox.expiresAt } : {}),
       } as SandboxState);
-    // Only sync sandbox state/expiry and recover stale failed lifecycle state
-    // without resetting lastActivityAt/hibernateAfter, otherwise every reconnect
-    // probe (including page entry) defeats the inactivity timer.
+
     const shouldRecoverFailedLifecycle =
       sessionRecord.lifecycleState === "failed";
     const updatedSession = await updateSession(sessionId, {
@@ -156,8 +152,6 @@ export async function GET(req: Request): Promise<Response> {
       console.warn(
         `[Reconnect] session=${sessionId} transient reconnect error, preserving runtime state: ${message}`,
       );
-      // Only forward expiresAt if it's still in the future; stale values
-      // cause the client to compute a zero/negative timeout and flip to expired.
       const rawExpiresAt = getStateExpiresAt(state);
       const safeExpiresAt =
         rawExpiresAt !== undefined && rawExpiresAt > Date.now()
@@ -171,7 +165,6 @@ export async function GET(req: Request): Promise<Response> {
       } satisfies ReconnectResponse);
     }
 
-    // Sandbox no longer exists (expired or stopped)
     await updateSession(sessionId, {
       sandboxState: clearSandboxState(sessionRecord.sandboxState),
       ...buildHibernatedLifecycleUpdate(),

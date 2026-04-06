@@ -57,7 +57,7 @@ function shouldReconnectPersistentSandbox(
  * Connect to the Vercel-backed cloud sandbox based on the provided state.
  *
  * - If `snapshotId` is present, creates a new named persistent sandbox from that legacy snapshot
- * - If `source`, `baseSnapshotId`, or `skipGitWorkspaceBootstrap` are present, creates a new named sandbox
+ * - If `source` is present, creates a new named sandbox and prepares the repo
  * - If `sandboxName` represents an active or explicitly resumed sandbox, reconnects to it
  * - Otherwise, creates an empty sandbox
  */
@@ -67,7 +67,6 @@ export async function connectVercel(
 ): Promise<Sandbox> {
   const sandboxName = getSandboxName(state);
 
-  // Legacy snapshot restore/migration
   if (state.snapshotId) {
     return VercelSandbox.create({
       ...(sandboxName ? { name: sandboxName } : {}),
@@ -77,11 +76,11 @@ export async function connectVercel(
       ...(options?.timeout !== undefined && { timeout: options.timeout }),
       ...(options?.ports && { ports: options.ports }),
       baseSnapshotId: state.snapshotId,
+      skipGitWorkspaceBootstrap: true,
       persistent: options?.persistent ?? true,
     });
   }
 
-  // Create from source
   if (state.source) {
     return VercelSandbox.create({
       ...(sandboxName ? { name: sandboxName } : {}),
@@ -106,7 +105,6 @@ export async function connectVercel(
     });
   }
 
-  // Reconnect/resume an existing persistent sandbox
   if (shouldReconnectPersistentSandbox(state, options, sandboxName)) {
     const remainingTimeout =
       getRemainingTimeout(state.expiresAt) ?? options?.timeout;
@@ -120,7 +118,6 @@ export async function connectVercel(
     });
   }
 
-  // Create empty sandbox
   return VercelSandbox.create({
     ...(sandboxName ? { name: sandboxName } : {}),
     env: options?.env,

@@ -132,7 +132,7 @@ describe("VercelSandbox.environmentDetails", () => {
 
     const details = sandbox.environmentDetails;
 
-    expect(details).toContain("This snapshot includes agent-browser");
+    expect(details).toContain("Sandbox VMs run inside persistent sandboxes");
     expect(details).toContain("Dev server URLs for locally running servers");
     expect(details).toContain("Port 3000: https://sbx-3000.vercel.run");
     expect(details).not.toContain("Port 5173:");
