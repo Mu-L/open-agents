@@ -149,6 +149,10 @@ export async function POST(req: Request) {
   const userTokenResult = await getUserGitHubTokenWithStatus();
   const userToken = userTokenResult.token;
 
+  console.log(
+    `[pr-route] User token status: ${userTokenResult.status}, has token: ${Boolean(userToken)}, repo token type: ${tokenResult.type}`,
+  );
+
   let headRef = resolvedBranch;
   const normalizedBaseOwner = parsedRepoUrl.owner.toLowerCase();
   const normalizedHeadOwner = headOwner?.trim().toLowerCase();
@@ -178,6 +182,10 @@ export async function POST(req: Request) {
   let tokenUsedForCreation = dedupedTokenCandidates[0];
 
   for (const candidateToken of dedupedTokenCandidates) {
+    const isUserToken = candidateToken === userToken;
+    console.log(
+      `[pr-route] Trying PR creation with ${isUserToken ? "user-to-server" : "installation"} token`,
+    );
     tokenUsedForCreation = candidateToken;
     result = await createPullRequest({
       repoUrl,
@@ -191,8 +199,14 @@ export async function POST(req: Request) {
     });
 
     if (result.success) {
+      console.log(
+        `[pr-route] PR created successfully with ${isUserToken ? "user-to-server" : "installation"} token`,
+      );
       break;
     }
+    console.log(
+      `[pr-route] PR creation failed with ${isUserToken ? "user-to-server" : "installation"} token: ${result.error}`,
+    );
   }
 
   if (!result.success) {

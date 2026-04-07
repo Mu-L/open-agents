@@ -188,6 +188,10 @@ export async function performAutoCreatePr(
   const userTokenResult = await getUserGitHubTokenWithStatus(userId);
   const userToken = userTokenResult.token;
 
+  console.log(
+    `[auto-pr] User token status: ${userTokenResult.status}, has token: ${Boolean(userToken)}, repo token type: ${repoTokenResult.type}`,
+  );
+
   // For read operations and git push, use any available token
   const tokenCandidates = dedupeTokenCandidates([
     repoTokenResult.token,
