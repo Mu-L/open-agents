@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-export type GitPanelTab = "info" | "checks";
+export type GitPanelTab = "info" | "diff" | "checks";
 export type ActiveView = "chat" | "diff";
 
 type GitPanelContextValue = {
@@ -25,6 +25,13 @@ type GitPanelContextValue = {
   /** Active view in the main content area (chat messages vs diff) */
   activeView: ActiveView;
   setActiveView: (view: ActiveView) => void;
+
+  /** File path to scroll to in the diff tab view */
+  focusedDiffFile: string | null;
+  setFocusedDiffFile: (file: string | null) => void;
+
+  /** Open the diff tab in the main content area, optionally focused on a file */
+  openDiffToFile: (filePath: string) => void;
 };
 
 const GitPanelContext = createContext<GitPanelContextValue | undefined>(
@@ -35,9 +42,15 @@ export function GitPanelProvider({ children }: { children: ReactNode }) {
   const [gitPanelOpen, setGitPanelOpen] = useState(false);
   const [gitPanelTab, setGitPanelTab] = useState<GitPanelTab>("info");
   const [activeView, setActiveView] = useState<ActiveView>("chat");
+  const [focusedDiffFile, setFocusedDiffFile] = useState<string | null>(null);
 
   const toggleGitPanel = useCallback(() => {
     setGitPanelOpen((prev) => !prev);
+  }, []);
+
+  const openDiffToFile = useCallback((filePath: string) => {
+    setFocusedDiffFile(filePath);
+    setActiveView("diff");
   }, []);
 
   const value = useMemo(
@@ -49,8 +62,11 @@ export function GitPanelProvider({ children }: { children: ReactNode }) {
       setGitPanelTab,
       activeView,
       setActiveView,
+      focusedDiffFile,
+      setFocusedDiffFile,
+      openDiffToFile,
     }),
-    [gitPanelOpen, toggleGitPanel, gitPanelTab, activeView],
+    [gitPanelOpen, toggleGitPanel, gitPanelTab, activeView, focusedDiffFile, openDiffToFile],
   );
 
   return (

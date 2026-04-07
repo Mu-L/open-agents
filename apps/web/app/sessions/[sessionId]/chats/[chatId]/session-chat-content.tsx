@@ -3639,18 +3639,16 @@ export function SessionChatContent({
           prDeploymentUrl={prDeploymentUrl}
           isDeploymentStale={isDeploymentStale}
           buildingDeploymentUrl={buildingDeploymentUrl}
-          sandboxStatus={sandboxUiStatus}
           isArchived={isArchived}
           canRunDevServer={canRunDevServer}
           devServer={devServer}
           codeEditor={codeEditor}
+          diffFiles={diff?.files ?? null}
           diffSummary={diff?.summary ?? null}
           onCommitClick={() => setCommitDialogOpen(true)}
           onCreatePrClick={() => setPrDialogOpen(true)}
-          onMergeClick={() => setMergeDialogOpen(true)}
           onCloseClick={() => setCloseDialogOpen(true)}
           onCreateRepoClick={() => setRepoDialogOpen(true)}
-          onDiffClick={() => setShowDiffPanel(!showDiffPanel)}
           onArchiveClick={() => setMobileArchiveDialogOpen(true)}
           onUnarchiveClick={() => {
             setIsUnarchiving(true);
@@ -3671,6 +3669,33 @@ export function SessionChatContent({
           }
           onOpenPr={openExistingPr}
           onOpenBuildingDeployment={openBuildingDeployment}
+          onMerged={handleMerged}
+          onFixChecks={async (failedRuns) => {
+            let text = "";
+            try {
+              const res = await fetch(
+                `/api/sessions/${session.id}/checks/fix`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ checkRuns: failedRuns }),
+                },
+              );
+              if (res.ok) {
+                const data = (await res.json()) as { message: string };
+                text = data.message;
+              }
+            } catch {
+              // Fall through to fallback
+            }
+
+            if (!text) {
+              const names = failedRuns.map((r) => r.name).join(", ");
+              text = `# Fix Failing Checks\n\nThe following checks are failing: ${names}. Please investigate and push a fix.`;
+            }
+
+            void sendMessageWithPendingState({ text });
+          }}
         />
       </div>
 

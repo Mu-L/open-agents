@@ -9,8 +9,9 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DiffFile } from "@/app/api/sessions/[sessionId]/diff/route";
+import { useGitPanel } from "./git-panel-context";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -131,11 +132,13 @@ function FileEntry({
   isExpanded,
   onToggle,
   diffStyle,
+  fileRef,
 }: {
   file: DiffFile;
   isExpanded: boolean;
   onToggle: () => void;
   diffStyle: DiffStyle;
+  fileRef?: React.Ref<HTMLDivElement>;
 }) {
   const fileName = file.path.split("/").pop() ?? file.path;
   const dirPath = file.path.slice(0, -fileName.length);
@@ -147,7 +150,7 @@ function FileEntry({
   const isGenerated = file.generated === true;
 
   return (
-    <div className="border-b border-border last:border-b-0">
+    <div ref={fileRef} className="border-b border-border last:border-b-0">
       <button
         type="button"
         onClick={isGenerated ? undefined : onToggle}
@@ -271,11 +274,13 @@ export function DiffTabView() {
     sandboxInfo,
     refreshDiff,
   } = useSessionChatWorkspaceContext();
+  const { focusedDiffFile, setFocusedDiffFile } = useGitPanel();
   const isMobile = useIsMobile();
   const { preferences } = useUserPreferences();
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [diffStyle, setDiffStyle] = useState<DiffStyle>("unified");
   const [scope, setScope] = useState<DiffScope>("all");
+  const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const filteredFiles = useMemo(() => {
     if (!diff) return [];
@@ -330,6 +335,41 @@ export function DiffTabView() {
   useEffect(() => {
     setExpandedFiles(new Set());
   }, [scope]);
+
+  // When a file is focused (from the git panel diff tab), expand it and scroll to it
+  useEffect(() => {
+    if (!focusedDiffFile || !diff) return;
+
+    // Expand the focused file
+    setExpandedFiles((prev) => {
+      const next = new Set(prev);
+      next.add(focusedDiffFile);
+      return next;
+    });
+
+    // Wait a tick for the DOM to update, then scroll
+    const timeoutId = setTimeout(() => {
+      const el = fileRefs.current.get(focusedDiffFile);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      // Clear the focused file after scrolling
+      setFocusedDiffFile(null);
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [focusedDiffFile, diff, setFocusedDiffFile]);
+
+  const setFileRef = useCallback(
+    (path: string) => (el: HTMLDivElement | null) => {
+      if (el) {
+        fileRefs.current.set(path, el);
+      } else {
+        fileRefs.current.delete(path);
+      }
+    },
+    [],
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -457,6 +497,7 @@ export function DiffTabView() {
                 isExpanded={expandedFiles.has(file.path)}
                 onToggle={() => toggleFile(file.path)}
                 diffStyle={diffStyle}
+                fileRef={setFileRef(file.path)}
               />
             ))}
           </div>

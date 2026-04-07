@@ -2,14 +2,13 @@
 
 import { GitCompare, Plus, X } from "lucide-react";
 import { useSessionLayout } from "@/app/sessions/[sessionId]/session-layout-context";
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useGitPanel, type ActiveView } from "./git-panel-context";
+import { useGitPanel } from "./git-panel-context";
 
 type ChatTabsProps = {
   activeChatId: string;
@@ -35,6 +34,11 @@ export function ChatTabs({
     switchChat(chat.id);
   };
 
+  const handleCloseDiff = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveView("chat");
+  };
+
   const hasDiffChanges =
     diffSummary &&
     (diffSummary.totalAdditions > 0 || diffSummary.totalDeletions > 0);
@@ -58,13 +62,13 @@ export function ChatTabs({
                 setActiveView("chat");
               }}
               className={cn(
-                "group relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs font-medium transition-colors",
+                "group relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
                 isActive
                   ? "border-foreground text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              <span className="max-w-[120px] truncate">
+              <span className="max-w-[140px] truncate">
                 {chat.title || "New Chat"}
               </span>
               {chat.hasUnread && (
@@ -75,18 +79,18 @@ export function ChatTabs({
         })}
 
         {/* Diff tab */}
-        {hasDiff && (
+        {(hasDiff || activeView === "diff") && (
           <button
             type="button"
             onClick={() => setActiveView("diff")}
             className={cn(
-              "group relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs font-medium transition-colors",
+              "group relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
               activeView === "diff"
                 ? "border-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            <GitCompare className="h-3 w-3" />
+            <GitCompare className="h-3.5 w-3.5" />
             <span>Diff</span>
             {hasDiffChanges && (
               <span className="flex items-center gap-1 text-[10px]">
@@ -98,6 +102,22 @@ export function ChatTabs({
                 </span>
               </span>
             )}
+            {/* Close button for diff tab */}
+            {activeView === "diff" && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={handleCloseDiff}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    handleCloseDiff(e as unknown as React.MouseEvent);
+                  }
+                }}
+                className="ml-0.5 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100"
+              >
+                <X className="h-3 w-3" />
+              </span>
+            )}
           </button>
         )}
 
@@ -107,7 +127,7 @@ export function ChatTabs({
             <button
               type="button"
               onClick={handleNewChat}
-              className="ml-1 flex shrink-0 items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="ml-1 flex shrink-0 items-center justify-center rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
