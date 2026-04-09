@@ -72,6 +72,8 @@ const mergeMethodDescriptions: Record<PullRequestMergeMethod, string> = {
   rebase: "All commits will be rebased and added to the base branch.",
 };
 
+const MERGE_READINESS_POLL_INTERVAL_MS = 5_000;
+
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
@@ -940,7 +942,11 @@ function InlineMergePanel({
 
       const readinessPayload = payload as MergeReadinessResponse;
       setReadiness(readinessPayload);
-      setMergeMethod(readinessPayload.defaultMethod);
+      setMergeMethod((currentMergeMethod) =>
+        readinessPayload.allowedMethods.includes(currentMergeMethod)
+          ? currentMergeMethod
+          : readinessPayload.defaultMethod,
+      );
     } catch (loadError) {
       if (readinessRequestIdRef.current !== requestId) {
         return;
@@ -965,6 +971,20 @@ function InlineMergePanel({
       void loadReadiness();
     }
   }, [loadReadiness]);
+
+  useEffect(() => {
+    if (isLoadingReadiness || (readiness?.checks.pending ?? 0) <= 0) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void loadReadiness();
+    }, MERGE_READINESS_POLL_INTERVAL_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isLoadingReadiness, loadReadiness, readiness?.checks.pending]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -1038,6 +1058,8 @@ function InlineMergePanel({
     }
   };
 
+  const isInitialReadinessLoading = isLoadingReadiness && !readiness;
+
   const forceBypassableReasons = new Set([
     "Required checks are failing",
     "Required checks are still pending",
@@ -1082,7 +1104,7 @@ function InlineMergePanel({
   const allowedMethods = readiness?.allowedMethods ?? ["squash"];
   const hasMultipleMethods = allowedMethods.length > 1;
   const mergeDisabled =
-    isSubmitting || isLoadingReadiness || !readiness || !readiness.pr;
+    isSubmitting || isInitialReadinessLoading || !readiness || !readiness.pr;
 
   const prTitle = readiness?.pr?.title ?? null;
   const prBody = readiness?.pr?.body ?? null;
@@ -1119,7 +1141,7 @@ function InlineMergePanel({
           void loadReadiness();
         }}
         isRefreshing={isLoadingReadiness}
-        isLoading={isLoadingReadiness && !readiness}
+        isLoading={isInitialReadinessLoading}
         fixChecksDisabled={isAgentWorking}
         onFixChecks={onFixChecks}
       />
@@ -1185,7 +1207,7 @@ function InlineMergePanel({
         <Switch
           checked={deleteBranch}
           onCheckedChange={setDeleteBranch}
-          disabled={isSubmitting || isLoadingReadiness}
+          disabled={isSubmitting || isInitialReadinessLoading}
         />
       </div>
 
