@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  Code2,
   Copy,
   ExternalLink,
   GitCommitHorizontal,
@@ -2775,73 +2776,98 @@ export function SessionChatContent({
       {panelPortalRef.current &&
         createPortal(gitPanelElement, panelPortalRef.current)}
 
-      {/* Dev server buttons portaled to header */}
+      {/* Dev server / code editor buttons portaled to header */}
       {headerActionsRef.current &&
         canRunDevServer &&
         createPortal(
-          devServer.state.status === "ready" ? (
-            <div className="flex items-center rounded-lg border border-border px-0.5 py-0.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => void devServer.handlePrimaryAction()}
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Open dev server</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => void devServer.handleStopAction()}
-                  >
-                    <Square className="h-3 w-3 fill-current" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Stop dev server</TooltipContent>
-              </Tooltip>
-            </div>
-          ) : devServer.state.status === "starting" ||
-            devServer.state.status === "stopping" ? (
+          <>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
-                  disabled
+                  onClick={() => void codeEditor.handleOpen()}
+                  disabled={
+                    codeEditor.state.status === "starting" ||
+                    codeEditor.state.status === "stopping"
+                  }
                 >
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {codeEditor.state.status === "starting" ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Code2 className="h-3.5 w-3.5" />
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                {devServer.state.status === "starting"
-                  ? "Starting dev server..."
-                  : "Stopping dev server..."}
+                {codeEditor.menuLabel}
               </TooltipContent>
             </Tooltip>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => void devServer.handlePrimaryAction()}
-                >
-                  <Play className="h-3.5 w-3.5 fill-current" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Start dev server</TooltipContent>
-            </Tooltip>
-          ),
+            {devServer.state.status === "ready" ? (
+              <div className="flex items-center rounded-lg border border-border px-0.5 py-0.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => void devServer.handlePrimaryAction()}
+                    >
+                      <Globe className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Open dev server</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => void devServer.handleStopAction()}
+                    >
+                      <Square className="h-3 w-3 fill-current" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Stop dev server</TooltipContent>
+                </Tooltip>
+              </div>
+            ) : devServer.state.status === "starting" ||
+              devServer.state.status === "stopping" ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled
+                  >
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {devServer.state.status === "starting"
+                    ? "Starting dev server..."
+                    : "Stopping dev server..."}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => void devServer.handlePrimaryAction()}
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Start dev server</TooltipContent>
+              </Tooltip>
+            )}
+          </>,
           headerActionsRef.current,
         )}
       <div className="flex h-full flex-col overflow-hidden">
