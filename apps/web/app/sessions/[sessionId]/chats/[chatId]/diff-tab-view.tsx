@@ -117,7 +117,6 @@ export function DiffTabView() {
 
   // When in uncommitted scope and the focused file has no local changes,
   // auto-switch to the first file that does have uncommitted changes.
-  // If no uncommitted files exist, clear the focused file.
   useEffect(() => {
     if (diffScope !== "uncommitted" || !diff || !file) return;
     const hasLocalChanges =
@@ -129,10 +128,9 @@ export function DiffTabView() {
     );
     if (firstUncommitted) {
       setFocusedDiffFile(firstUncommitted.path);
-    } else {
-      // No uncommitted files at all — clear selection
-      setFocusedDiffFile(null);
     }
+    // If no uncommitted files exist, keep the current file selected
+    // so the Changes tab stays open — the empty state renders inline.
   }, [diffScope, diff, file, setFocusedDiffFile]);
 
   const showStaleIndicator = !sandboxInfo && diff !== null;

@@ -8,7 +8,9 @@ import {
   FolderGit2,
   GitBranch,
   GitCommit,
+  GitMerge,
   GitPullRequest,
+  GitPullRequestClosed,
   Loader2,
   SquareDot,
   SquareMinus,
@@ -1104,7 +1106,14 @@ export function GitPanel(props: GitPanelProps) {
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent"
             >
-              <GitPullRequest className="h-3.5 w-3.5" />#{session.prNumber}
+              {session.prStatus === "merged" ? (
+                <GitMerge className="h-3.5 w-3.5 text-purple-500" />
+              ) : session.prStatus === "closed" ? (
+                <GitPullRequestClosed className="h-3.5 w-3.5 text-red-500" />
+              ) : (
+                <GitPullRequest className="h-3.5 w-3.5 text-green-500" />
+              )}
+              #{session.prNumber}
               <ExternalLink className="h-3 w-3 text-muted-foreground" />
             </a>
           ) : hasRepo && session.branch ? (
