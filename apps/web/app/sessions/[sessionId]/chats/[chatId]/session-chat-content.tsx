@@ -65,6 +65,7 @@ import {
   PinnedTodoPanel,
   getLatestTodos,
 } from "@/components/pinned-todo-panel";
+import { AssistantResponseSelection } from "./assistant-response-selection";
 import { ThinkingBlock } from "@/components/thinking-block";
 import { ToolCall } from "@/components/tool-call";
 import { OpenFileProvider } from "@/components/tool-call/open-file-context";
@@ -1006,6 +1007,19 @@ export function SessionChatContent({
     removeTextAttachment,
     clearTextAttachments,
   } = useTextAttachments();
+  const handleAddAssistantSelectionToPrompt = useCallback(
+    (selectedText: string, comment: string) => {
+      const parts = ["Assistant response:", "```", selectedText, "```"];
+      if (comment) {
+        parts.push("", `> ${comment}`);
+      }
+      addTextAttachment(parts.join("\n"), "comment-on-response");
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    },
+    [addTextAttachment],
+  );
   const { containerRef, isAtBottom, scrollToBottom } =
     useScrollToBottom<HTMLDivElement>();
   const {
@@ -1166,6 +1180,23 @@ export function SessionChatContent({
     () => renderMessages[renderMessages.length - 1],
     [renderMessages],
   );
+  const latestCommentableAssistantMessageId = useMemo(() => {
+    for (let index = renderMessages.length - 1; index >= 0; index -= 1) {
+      const message = renderMessages[index];
+      if (message.role !== "assistant") {
+        continue;
+      }
+
+      const hasText = message.parts.some(
+        (part) => part.type === "text" && part.text.trim().length > 0,
+      );
+      if (hasText) {
+        return message.id;
+      }
+    }
+
+    return null;
+  }, [renderMessages]);
   const gitFinalizationState = useMemo(
     () =>
       getGitFinalizationState({
@@ -3112,6 +3143,10 @@ export function SessionChatContent({
                                     isFinalAssistantTextPart &&
                                     !isMessageStreaming &&
                                     p.text.trim().length > 0;
+                                  const canCommentAssistantMessage =
+                                    m.role === "assistant" &&
+                                    m.id ===
+                                      latestCommentableAssistantMessageId;
 
                                   return (
                                     <div
@@ -3181,6 +3216,57 @@ export function SessionChatContent({
                                             </div>
                                           )}
                                         </div>
+                                      ) : canCommentAssistantMessage ? (
+                                        <AssistantResponseSelection
+                                          className="w-full overflow-hidden"
+                                          onAddToPrompt={
+                                            handleAddAssistantSelectionToPrompt
+                                          }
+                                        >
+                                          <Streamdown
+                                            animated={
+                                              isMessageStreaming
+                                                ? {
+                                                    animation: "fadeIn",
+                                                    duration: 250,
+                                                    easing: "ease-out",
+                                                  }
+                                                : undefined
+                                            }
+                                            mode={
+                                              isMessageStreaming
+                                                ? "streaming"
+                                                : "static"
+                                            }
+                                            isAnimating={isMessageStreaming}
+                                            components={streamdownComponents}
+                                            plugins={streamdownPlugins}
+                                          >
+                                            {p.text}
+                                          </Streamdown>
+                                          {canCopyAssistantMessage && (
+                                            <div className="mt-1 flex justify-start">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  void handleCopyAssistantMessage(
+                                                    m.id,
+                                                    p.text,
+                                                  )
+                                                }
+                                                aria-label="Copy assistant response"
+                                                className="rounded p-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                                              >
+                                                {copiedAssistantMessageId ===
+                                                m.id ? (
+                                                  <Check className="h-4 w-4" />
+                                                ) : (
+                                                  <Copy className="h-4 w-4" />
+                                                )}
+                                              </button>
+                                            </div>
+                                          )}
+                                        </AssistantResponseSelection>
                                       ) : (
                                         <div className="group min-w-0 w-full overflow-hidden">
                                           <Streamdown
