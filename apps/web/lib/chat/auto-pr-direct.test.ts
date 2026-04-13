@@ -70,7 +70,7 @@ const execSpy = mock(async (command: string): Promise<ExecResult> => {
 });
 
 const updateSessionSpy = mock(async () => {});
-const getCachedGitHubBranchesSpy = mock(async () => cachedBranchesResult);
+const getGitHubBranchesSpy = mock(async () => cachedBranchesResult);
 const findPullRequestByBranchSpy = mock(async () => findPullRequestResult);
 const createPullRequestSpy = mock(async () => createPullRequestResult);
 const generatePullRequestContentFromSandboxSpy = mock(
@@ -92,7 +92,7 @@ mock.module("@/lib/db/sessions", () => ({
 }));
 
 mock.module("@/lib/github/cached-api", () => ({
-  getCachedGitHubBranches: getCachedGitHubBranchesSpy,
+  getGitHubBranches: getGitHubBranchesSpy,
 }));
 
 mock.module("@/lib/github/get-repo-token", () => ({
@@ -152,7 +152,7 @@ function makeParams() {
 beforeEach(() => {
   execSpy.mockClear();
   updateSessionSpy.mockClear();
-  getCachedGitHubBranchesSpy.mockClear();
+  getGitHubBranchesSpy.mockClear();
   findPullRequestByBranchSpy.mockClear();
   createPullRequestSpy.mockClear();
   generatePullRequestContentFromSandboxSpy.mockClear();

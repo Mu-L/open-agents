@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCachedGitHubBranches } from "@/lib/github/cached-api";
+import { getGitHubBranches } from "@/lib/github/cached-api";
 import { getRepoToken } from "@/lib/github/get-repo-token";
 import { getServerSession } from "@/lib/session/get-server-session";
 
@@ -304,7 +304,7 @@ export async function GET(request: NextRequest) {
             query,
             limit,
           )
-        : await getCachedGitHubBranches(
+        : await getGitHubBranches(
             session.user.id,
             token,
             owner,
