@@ -7,6 +7,8 @@ import {
   GitBranch,
   GitMerge,
   GitPullRequest,
+  Kanban,
+  List,
   Loader2,
   Monitor,
   Pencil,
@@ -49,12 +51,16 @@ import type { Session as AuthSession } from "@/lib/session/types";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import { getUsageLeaderboardDomain } from "@/lib/usage/leaderboard-domain";
 
+export type SessionsViewMode = "list" | "board";
+
 type InboxSidebarProps = {
   sessions: SessionWithUnread[];
   archivedCount: number;
   sessionsLoading: boolean;
   activeSessionId: string;
   pendingSessionId: string | null;
+  viewMode: SessionsViewMode;
+  onViewModeChange: (mode: SessionsViewMode) => void;
   onSessionClick: (session: SessionWithUnread) => void;
   onSessionPrefetch: (session: SessionWithUnread) => void;
   onRenameSession?: (sessionId: string, title: string) => Promise<void>;
@@ -643,6 +649,8 @@ export function InboxSidebar({
   sessionsLoading,
   activeSessionId,
   pendingSessionId,
+  viewMode,
+  onViewModeChange,
   onSessionClick,
   onSessionPrefetch,
   onRenameSession,
@@ -928,20 +936,62 @@ export function InboxSidebar({
           <div className="flex items-center px-2 py-1.5 text-sm text-primary">
             <span>Sessions</span>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              if (isMobile) {
-                setOpenMobile(false);
-              }
-              onOpenNewSession();
-            }}
-            className="h-7 w-7"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-0.5">
+            <div className="flex items-center rounded-md border border-border/50 p-0.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => onViewModeChange("list")}
+                    className={`rounded p-1 transition-colors ${
+                      viewMode === "list"
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    aria-label="List view"
+                  >
+                    <List className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={4}>
+                  List view
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => onViewModeChange("board")}
+                    className={`rounded p-1 transition-colors ${
+                      viewMode === "board"
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    aria-label="Board view"
+                  >
+                    <Kanban className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={4}>
+                  Board view
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                if (isMobile) {
+                  setOpenMobile(false);
+                }
+                onOpenNewSession();
+              }}
+              className="h-7 w-7"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex gap-1">

@@ -11,8 +11,9 @@ import {
   useState,
   useTransition,
 } from "react";
-import { InboxSidebar } from "@/components/inbox-sidebar";
+import { InboxSidebar, type SessionsViewMode } from "@/components/inbox-sidebar";
 import { NewSessionDialog } from "@/components/new-session-dialog";
+import { SessionsKanbanBoard } from "@/components/sessions-kanban-board";
 import {
   Sidebar,
   SidebarContent,
@@ -59,6 +60,7 @@ export function SessionsRouteShell({
   const routeSessionId =
     typeof params.sessionId === "string" ? params.sessionId : null;
   const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<SessionsViewMode>("list");
   const [optimisticActiveSessionId, setOptimisticActiveSessionId] = useState<
     string | null
   >(null);
@@ -113,6 +115,19 @@ export function SessionsRouteShell({
       router,
       startNavigationTransition,
     ],
+  );
+
+  const handleBoardSessionClick = useCallback(
+    (targetSession: SessionWithUnread) => {
+      setViewMode("list");
+      const href = getSessionHref(targetSession);
+      prefetchedSessionHrefsRef.current.add(href);
+      setOptimisticActiveSessionId(targetSession.id);
+      startNavigationTransition(() => {
+        router.push(href, { scroll: false });
+      });
+    },
+    [getSessionHref, router, startNavigationTransition],
   );
 
   const handleSessionPrefetch = useCallback(
@@ -265,6 +280,8 @@ export function SessionsRouteShell({
               sessionsLoading={sessionsLoading}
               activeSessionId={activeSessionId}
               pendingSessionId={pendingSessionId}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
               onSessionClick={handleSessionClick}
               onSessionPrefetch={handleSessionPrefetch}
               onRenameSession={handleRenameSession}
@@ -277,7 +294,17 @@ export function SessionsRouteShell({
             />
           </SidebarContent>
         </Sidebar>
-        <RouteContentShell>{children}</RouteContentShell>
+        {viewMode === "board" ? (
+          <SidebarInset className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <SessionsKanbanBoard
+              sessions={sessions}
+              onSessionClick={handleBoardSessionClick}
+              onArchiveSession={handleArchiveSession}
+            />
+          </SidebarInset>
+        ) : (
+          <RouteContentShell>{children}</RouteContentShell>
+        )}
       </SidebarProvider>
 
       <NewSessionDialog
