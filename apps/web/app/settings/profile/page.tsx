@@ -329,6 +329,7 @@ function ProfileSidebar({
   topRepos,
   estimatedCostValue,
   vercelRank,
+  orgLabel,
 }: {
   totals: {
     inputTokens: number;
@@ -339,6 +340,7 @@ function ProfileSidebar({
   topRepos: UsageRepositoryInsight[] | null;
   estimatedCostValue: string;
   vercelRank: number | null;
+  orgLabel: string | null;
 }) {
   const { session, loading } = useSession();
 
@@ -391,7 +393,11 @@ function ProfileSidebar({
       {/* Rank + Email */}
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">
-          {vercelRank ? `#${vercelRank} in Vercel` : "Vercel rank unavailable"}
+          {vercelRank && orgLabel
+            ? `#${vercelRank} in ${orgLabel}`
+            : orgLabel
+              ? `${orgLabel} rank unavailable`
+              : "Org rank unavailable"}
         </p>
         {session.user.email && (
           <p className="truncate text-sm text-muted-foreground">
@@ -543,16 +549,31 @@ export default function ProfilePage() {
     : null;
 
   const topRepos = data?.insights?.topRepositories ?? null;
+  const allTimeLeaderboard = fullData?.domainLeaderboard ?? null;
   const vercelRank = useMemo(() => {
-    const leaderboard = fullData?.domainLeaderboard;
     const userId = session?.user?.id;
-    if (!leaderboard || !userId) {
+    if (!allTimeLeaderboard || !userId) {
       return null;
     }
 
-    const index = leaderboard.rows.findIndex((row) => row.userId === userId);
+    const index = allTimeLeaderboard.rows.findIndex(
+      (row) => row.userId === userId,
+    );
     return index >= 0 ? index + 1 : null;
-  }, [fullData?.domainLeaderboard, session?.user?.id]);
+  }, [allTimeLeaderboard, session?.user?.id]);
+  const orgLabel = useMemo(() => {
+    const domain = allTimeLeaderboard?.domain?.trim();
+    if (!domain) {
+      return null;
+    }
+
+    const [orgName] = domain.split(".");
+    if (!orgName) {
+      return domain;
+    }
+
+    return orgName.charAt(0).toUpperCase() + orgName.slice(1);
+  }, [allTimeLeaderboard?.domain]);
 
   return (
     <>
@@ -565,6 +586,7 @@ export default function ProfilePage() {
             topRepos={isLoading ? null : topRepos}
             estimatedCostValue={estimatedCostValue}
             vercelRank={vercelRank}
+            orgLabel={orgLabel}
           />
         </div>
 
