@@ -111,9 +111,6 @@ export function OnboardingFlow() {
     }
   };
 
-  const allDone =
-    completedSteps.has(1) && completedSteps.has(2) && completedSteps.has(3);
-
   const steps: { id: StepId; title: string }[] = [
     { id: 1, title: "Select Vercel Team" },
     { id: 2, title: "Connect GitHub" },
@@ -182,11 +179,13 @@ export function OnboardingFlow() {
                     >
                       {step.id}.
                     </span>
-                    <span className="text-sm font-medium">{step.title}</span>
+                    <span
+                      className={`text-sm font-medium ${isActive ? "text-white" : ""}`}
+                    >
+                      {step.title}
+                    </span>
                     {isCompleted && (
-                      <span className="ml-auto text-xs text-emerald-500">
-                        ✓
-                      </span>
+                      <Check className="ml-auto size-4 text-white" strokeWidth={2.5} />
                     )}
                   </button>
 
@@ -212,7 +211,8 @@ export function OnboardingFlow() {
                         )}
                         {step.id === 3 && (
                           <ModelSelector
-                            onComplete={() => markComplete(3)}
+                            onGetStarted={handleGetStarted}
+                            isCompleting={isCompleting}
                           />
                         )}
                       </div>
@@ -223,24 +223,7 @@ export function OnboardingFlow() {
             })}
           </div>
 
-          {/* Get Started */}
-          <div className="mt-10 flex justify-end">
-            <Button
-              size="lg"
-              disabled={!allDone || isCompleting}
-              onClick={handleGetStarted}
-              className="min-w-[140px] gap-2 bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500"
-            >
-              {isCompleting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Setting up…
-                </>
-              ) : (
-                "Get Started"
-              )}
-            </Button>
-          </div>
+
         </div>
       </div>
     </div>
@@ -426,13 +409,13 @@ function GitHubConnector({ onComplete }: { onComplete: () => void }) {
             Change
           </button>
         </div>
-        <button
-          type="button"
+        <Button
+          size="sm"
           onClick={onComplete}
-          className="block text-xs text-zinc-600 underline-offset-2 transition-colors hover:text-zinc-400 hover:underline"
+          className="gap-2 bg-white text-black hover:bg-zinc-200"
         >
           Continue
-        </button>
+        </Button>
       </div>
     );
   }
@@ -473,12 +456,17 @@ function GitHubConnector({ onComplete }: { onComplete: () => void }) {
 
 // ─── Step 3: Model Selector ─────────────────────────────────────────────────
 
-function ModelSelector({ onComplete }: { onComplete: () => void }) {
+function ModelSelector({
+  onGetStarted,
+  isCompleting,
+}: {
+  onGetStarted: () => void;
+  isCompleting: boolean;
+}) {
   const { modelOptions, loading: modelsLoading } = useModelOptions();
   const { preferences, loading: prefsLoading, updatePreferences } =
     useUserPreferences();
   const [isSaving, setIsSaving] = useState(false);
-  const [isDone, setIsDone] = useState(false);
 
   const defaultId = useMemo(
     () => getDefaultModelOptionId(modelOptions),
@@ -497,24 +485,18 @@ function ModelSelector({ onComplete }: { onComplete: () => void }) {
     [modelOptions],
   );
 
-  const handleModelChange = async (id: string) => {
+  const handleGetStarted = async () => {
     setIsSaving(true);
     try {
-      await updatePreferences({ defaultModelId: id });
-      setIsDone(true);
-      onComplete();
+      await updatePreferences({ defaultModelId: currentModelId });
+      onGetStarted();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to save preference",
         { position: "bottom-left" },
       );
-    } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleConfirm = async () => {
-    await handleModelChange(currentModelId);
   };
 
   if (modelsLoading || prefsLoading) {
@@ -536,35 +518,28 @@ function ModelSelector({ onComplete }: { onComplete: () => void }) {
           placeholder="Select a model"
           searchPlaceholder="Search models…"
           emptyText="No models found."
-          disabled={isSaving || isDone}
-          onChange={handleModelChange}
+          disabled={isSaving || isCompleting}
+          onChange={(id) => {
+            updatePreferences({ defaultModelId: id }).catch(() => {});
+          }}
         />
       </div>
 
-      {!isDone && (
-        <Button
-          size="sm"
-          disabled={isSaving}
-          onClick={handleConfirm}
-          className="gap-2 bg-white text-black hover:bg-zinc-200"
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="size-3.5 animate-spin" />
-              Saving…
-            </>
-          ) : (
-            "Confirm"
-          )}
-        </Button>
-      )}
-
-      {isDone && (
-        <div className="flex items-center gap-2 text-sm text-emerald-500">
-          <Check className="size-4" strokeWidth={2.5} />
-          Saved
-        </div>
-      )}
+      <Button
+        size="sm"
+        disabled={isSaving || isCompleting}
+        onClick={handleGetStarted}
+        className="gap-2 bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500"
+      >
+        {isSaving || isCompleting ? (
+          <>
+            <Loader2 className="size-3.5 animate-spin" />
+            {isCompleting ? "Setting up…" : "Saving…"}
+          </>
+        ) : (
+          "Get Started"
+        )}
+      </Button>
     </div>
   );
 }

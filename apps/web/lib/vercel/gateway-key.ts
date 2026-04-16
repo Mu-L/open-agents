@@ -101,16 +101,31 @@ export async function obtainGatewayApiKey(params: {
   }
 
   try {
-    // Revoke the old key if one exists
+    // Skip if the same team is already configured with a valid key
     const [existing] = await db
       .select({
         gatewayApiKeyId: vercelConnections.gatewayApiKeyId,
+        gatewayApiKey: vercelConnections.gatewayApiKey,
         teamId: vercelConnections.teamId,
       })
       .from(vercelConnections)
       .where(eq(vercelConnections.userId, params.userId))
       .limit(1);
 
+    if (
+      existing?.teamId === params.teamId &&
+      existing.gatewayApiKey &&
+      existing.gatewayApiKeyId
+    ) {
+      // Same team, key already exists — return the existing key
+      try {
+        return decrypt(existing.gatewayApiKey);
+      } catch {
+        // Decryption failed — fall through to re-create
+      }
+    }
+
+    // Revoke the old key if switching teams
     if (existing?.gatewayApiKeyId && existing.teamId) {
       await revokeGatewayApiKey({
         token,
