@@ -45,8 +45,8 @@ export async function GET(req: NextRequest): Promise<Response> {
     sameSite: "lax",
   });
 
-  // TODO: fix and remove later after testing
-  const forceConsent = true;
+  const forceConsent =
+    req.nextUrl.searchParams.get("consent") === "1";
 
   const url = getVercelAuthorizationUrl({
     clientId,
