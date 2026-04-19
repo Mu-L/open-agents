@@ -90,11 +90,11 @@ export function useAudioRecording() {
       recognition.onresult = (event) => {
         let nextTranscript = speechTranscriptRef.current;
         for (
-          let resultIndex = event.resultIndex;
-          resultIndex < event.results.length;
-          resultIndex++
+          let currentResultIndex = event.resultIndex;
+          currentResultIndex < event.results.length;
+          currentResultIndex++
         ) {
-          const result = event.results[resultIndex];
+          const result = event.results[currentResultIndex];
           if (!result?.isFinal) {
             continue;
           }
@@ -104,7 +104,9 @@ export function useAudioRecording() {
             continue;
           }
 
-          nextTranscript = `${nextTranscript} ${alternative.transcript}`.trim();
+          nextTranscript = nextTranscript
+            ? `${nextTranscript} ${alternative.transcript}`
+            : alternative.transcript;
         }
 
         speechTranscriptRef.current = nextTranscript;
