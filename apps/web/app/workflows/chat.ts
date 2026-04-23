@@ -8,10 +8,11 @@ import {
   pruneMessages,
   type UIMessageChunk,
 } from "ai";
-import type { OpenHarnessAgentCallOptions } from "@open-harness/agent";
+import type { OpenAgentCallOptions } from "@open-agents/agent";
 import { getWorkflowMetadata, getWritable } from "workflow";
 import { getRun } from "workflow/api";
 import { addLanguageModelUsage } from "./usage-utils";
+import { extractGatewayCost } from "./gateway-metadata";
 import type {
   WebAgentCommitData,
   WebAgentMessageMetadata,
@@ -20,6 +21,7 @@ import type {
   WebAgentUIMessage,
 } from "@/app/types";
 import {
+  claimActiveStream,
   clearActiveStream,
   hasAutoCommitChangesStep,
   persistAssistantMessage,
@@ -43,7 +45,7 @@ type Options = {
   userId: string;
   selectedModelId: string;
   modelId: string;
-  agentOptions: OpenHarnessAgentCallOptions;
+  agentOptions: OpenAgentCallOptions;
   maxSteps?: number;
   /** Whether auto-commit+push should run after a natural finish. */
   autoCommitEnabled?: boolean;
@@ -462,6 +464,25 @@ export async function runAgentWorkflow(options: Options) {
     throw new Error("runAgentWorkflow requires at least one message");
   }
 
+  // Self-register this workflow's runId onto the chat as the very first step.
+  // The HTTP POST handler also writes this (via compareAndSetChatActiveStreamId
+  // after `start()` returns), but that write is best-effort and can be lost
+  // when the client disconnects early and the function is torn down before
+  // it runs. Persisting from inside the workflow guarantees that as long as
+  // the workflow is running, the chat row points at it and the client can
+  // resume on refresh.
+  const activeStreamClaim = await claimActiveStream(
+    options.chatId,
+    workflowRunId,
+  );
+  if (activeStreamClaim === "conflict") {
+    // Another workflow claimed the slot while this run was queued or starting.
+    // Exit before emitting chunks or persisting messages so only the owning
+    // workflow can mutate this chat.
+    await closeStream(writable);
+    return;
+  }
+
   const [modelMessages, assistantId] = await Promise.all([
     convertMessages(options.messages),
     latestMessage.role === "assistant"
@@ -787,7 +808,7 @@ const runAgentStep = async (
   sessionId: string,
   selectedModelId: string,
   modelId: string,
-  agentOptions: OpenHarnessAgentCallOptions,
+  agentOptions: OpenAgentCallOptions,
   stepNumber: number,
   userId: string,
   enabledMcpConnectionIds?: string[],
@@ -838,6 +859,7 @@ const runAgentStep = async (
   try {
     let responseMessage: WebAgentUIMessage | undefined;
     let lastStepUsage: LanguageModelUsage | undefined;
+    let lastStepCost: number | undefined;
     const lastOriginalMessage = originalMessages.at(-1);
     const existingStepFinishReasons: WebAgentStepFinishMetadata[] =
       lastOriginalMessage?.role === "assistant"
@@ -847,8 +869,13 @@ const runAgentStep = async (
       lastOriginalMessage?.role === "assistant"
         ? lastOriginalMessage.metadata?.totalMessageUsage
         : undefined;
+    const existingTotalMessageCost =
+      lastOriginalMessage?.role === "assistant"
+        ? lastOriginalMessage.metadata?.totalMessageCost
+        : undefined;
     let stepFinishReasons = existingStepFinishReasons;
     let totalMessageUsage = existingTotalMessageUsage;
+    let totalMessageCost = existingTotalMessageCost;
 
     const result = await webAgent.stream({
       messages,
@@ -869,6 +896,11 @@ const runAgentStep = async (
               ? addLanguageModelUsage(totalMessageUsage, streamPart.usage)
               : streamPart.usage;
           }
+          const stepCost = extractGatewayCost(streamPart.providerMetadata);
+          if (stepCost !== undefined) {
+            lastStepCost = stepCost;
+            totalMessageCost = (totalMessageCost ?? 0) + stepCost;
+          }
           stepFinishReasons = [
             ...stepFinishReasons,
             {
@@ -881,6 +913,8 @@ const runAgentStep = async (
             modelId,
             lastStepUsage,
             totalMessageUsage,
+            lastStepCost,
+            totalMessageCost,
             lastStepFinishReason: streamPart.finishReason,
             lastStepRawFinishReason: streamPart.rawFinishReason,
             stepFinishReasons,
@@ -927,6 +961,26 @@ const runAgentStep = async (
           totalMessageUsage: existingTotalMessageUsage
             ? addLanguageModelUsage(existingTotalMessageUsage, stepUsage)
             : stepUsage,
+        },
+      };
+    }
+
+    const stepsCost = steps.reduce<number | undefined>((sum, step) => {
+      const cost = extractGatewayCost(step.providerMetadata);
+      if (cost === undefined) {
+        return sum;
+      }
+      return (sum ?? 0) + cost;
+    }, undefined);
+
+    if (stepsCost !== undefined) {
+      const carriedCost = (existingTotalMessageCost ?? 0) + stepsCost;
+      responseMessage = {
+        ...responseMessage,
+        metadata: {
+          ...responseMessage.metadata,
+          lastStepCost,
+          totalMessageCost: carriedCost,
         },
       };
     }
@@ -998,6 +1052,7 @@ const runAgentStep = async (
       finishReason,
       rawFinishReason,
       stepUsage,
+      stepCost: stepsCost,
       stepWasAborted: false,
       stepTiming: buildStepTiming(
         stepNumber,
@@ -1018,6 +1073,7 @@ const runAgentStep = async (
         finishReason: abortedFinishReason,
         rawFinishReason: undefined,
         stepUsage: undefined,
+        stepCost: undefined,
         stepWasAborted: true,
         stepTiming: buildStepTiming(
           stepNumber,

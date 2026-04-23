@@ -1,7 +1,7 @@
 "use client";
 
-import type { AskUserQuestionInput } from "@open-harness/agent";
-import { formatTokens } from "@open-harness/shared";
+import type { AskUserQuestionInput } from "@open-agents/agent";
+import { formatTokens } from "@open-agents/shared";
 import {
   isReasoningUIPart,
   isToolUIPart,
@@ -109,6 +109,7 @@ import {
   shouldKeepCollapsedReasoningStreaming,
   shouldRenderGitDataPart,
   shouldShowThinkingIndicator,
+  shouldUseChatListStreamingState,
 } from "@/lib/chat-streaming-state";
 import { ACCEPT_IMAGE_TYPES, isValidImageType } from "@/lib/image-utils";
 import { isLargeText } from "@/lib/text-attachment-utils";
@@ -491,15 +492,46 @@ function getConversationUsage(
   }, getUsageTotals(undefined));
 }
 
-function getConversationEstimatedCost(
+type ConversationCostSource = "gateway" | "estimate" | "mixed";
+
+type ConversationCost = {
+  total: number;
+  source: ConversationCostSource;
+};
+
+/**
+ * Compute the cumulative USD cost across every assistant message in the
+ * conversation. Per-message preference order:
+ *   1. Gateway-reported `totalMessageCost` (authoritative when present).
+ *   2. Token-based estimate from `totalMessageUsage` / `lastStepUsage`.
+ *
+ * Returns `undefined` when no cost can be attributed to any message (e.g. no
+ * usage metadata and no gateway cost), matching the previous "hide the row"
+ * behavior. The `source` discriminant lets the UI label the figure correctly.
+ */
+function getConversationCost(
   messages: WebAgentUIMessage[],
   modelCost: AvailableModelCost | undefined,
-): number | undefined {
-  let totalCost = 0;
-  let hasUsage = false;
+): ConversationCost | undefined {
+  let total = 0;
+  let hasAnyCost = false;
+  let sawGateway = false;
+  let sawEstimate = false;
 
   for (const message of messages) {
     if (message.role !== "assistant") {
+      continue;
+    }
+
+    const gatewayCost = message.metadata?.totalMessageCost;
+    if (
+      typeof gatewayCost === "number" &&
+      Number.isFinite(gatewayCost) &&
+      gatewayCost >= 0
+    ) {
+      total += gatewayCost;
+      hasAnyCost = true;
+      sawGateway = true;
       continue;
     }
 
@@ -514,14 +546,22 @@ function getConversationEstimatedCost(
       modelCost,
     );
     if (estimatedCost === undefined) {
-      return undefined;
+      continue;
     }
 
-    totalCost += estimatedCost;
-    hasUsage = true;
+    total += estimatedCost;
+    hasAnyCost = true;
+    sawEstimate = true;
   }
 
-  return hasUsage ? totalCost : undefined;
+  if (!hasAnyCost) {
+    return undefined;
+  }
+
+  const source: ConversationCostSource =
+    sawGateway && sawEstimate ? "mixed" : sawGateway ? "gateway" : "estimate";
+
+  return { total, source };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -575,14 +615,14 @@ function ContextUsageIndicator({
   conversationInputTokens,
   conversationCachedInputTokens,
   conversationOutputTokens,
-  estimatedConversationCost,
+  conversationCost,
   contextLimit,
 }: {
   inputTokens: number;
   conversationInputTokens: number;
   conversationCachedInputTokens: number;
   conversationOutputTokens: number;
-  estimatedConversationCost?: number;
+  conversationCost?: ConversationCost;
   contextLimit: number;
 }) {
   if (inputTokens === 0) {
@@ -636,10 +676,18 @@ function ContextUsageIndicator({
             <span className="opacity-60">Conversation output</span>
             <span>{formatTokens(conversationOutputTokens)}</span>
           </div>
-          {estimatedConversationCost !== undefined ? (
+          {conversationCost !== undefined ? (
             <div className="flex justify-between gap-6">
-              <span className="opacity-60">Est. cost</span>
-              <span>{formatUsd(estimatedConversationCost)}</span>
+              <span className="opacity-60">
+                {conversationCost.source === "gateway"
+                  ? "Cost"
+                  : conversationCost.source === "mixed"
+                    ? "Cost (partial est.)"
+                    : "Est. cost"}
+              </span>
+              <span className="tabular-nums">
+                {formatUsd(conversationCost.total)}
+              </span>
             </div>
           ) : null}
         </div>
@@ -1265,6 +1313,7 @@ export function SessionChatContent({
     addToolOutput,
   } = chat;
   const {
+    chats,
     markChatRead,
     setChatStreaming,
     setChatTitle,
@@ -1272,6 +1321,10 @@ export function SessionChatContent({
     refreshChats,
     forkChat,
   } = useSessionChats(session.id);
+  const currentChatListItem = useMemo(
+    () => chats.find((candidate) => candidate.id === chatInfo.id) ?? null,
+    [chatInfo.id, chats],
+  );
   const handleForkAssistantMessage = useCallback(
     async (messageId: string) => {
       if (forkingAssistantMessageId !== null) {
@@ -1372,6 +1425,23 @@ export function SessionChatContent({
         : false,
     [lastMessage],
   );
+  const shouldUseChatListStreaming = useMemo(
+    () =>
+      shouldUseChatListStreamingState({
+        status,
+        hasChatListStreaming: currentChatListItem?.isStreaming ?? false,
+        userStopped,
+        hasAssistantRenderableContent,
+        lastMessageRole: lastMessage?.role,
+      }),
+    [
+      currentChatListItem?.isStreaming,
+      hasAssistantRenderableContent,
+      lastMessage?.role,
+      status,
+      userStopped,
+    ],
+  );
   const hasSeenAssistantRenderableContentRef = useRef(false);
   const [hasPendingResponse, setHasPendingResponse] = useState(false);
   /** Captures Date.now() when the user sends a message, so the streaming
@@ -1391,7 +1461,7 @@ export function SessionChatContent({
   // immediately clear it because status is still "ready" at that point —
   // resulting in a visible flicker of the thinking indicator and stop button.
   useEffect(() => {
-    if (isChatInFlight) {
+    if (isChatInFlight || shouldUseChatListStreaming) {
       setHasPendingResponse(true);
       return;
     }
@@ -1401,7 +1471,7 @@ export function SessionChatContent({
       setUserStopped(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above
-  }, [isChatInFlight, status]);
+  }, [isChatInFlight, shouldUseChatListStreaming, status]);
 
   useEffect(() => {
     if (!isChatInFlight && !hasPendingResponse) {
@@ -1424,7 +1494,7 @@ export function SessionChatContent({
     hasSeenAssistantRenderableContentRef.current;
   const effectiveStatus = userStopped
     ? "ready"
-    : hasPendingResponse
+    : hasPendingResponse || shouldUseChatListStreaming
       ? "streaming"
       : status;
   const _isChatReady = effectiveStatus === "ready";
@@ -2620,9 +2690,8 @@ export function SessionChatContent({
     () => getConversationUsage(renderMessages),
     [renderMessages],
   );
-  const conversationEstimatedCost = useMemo(
-    () =>
-      getConversationEstimatedCost(renderMessages, selectedModelOption?.cost),
+  const conversationCost = useMemo(
+    () => getConversationCost(renderMessages, selectedModelOption?.cost),
     [renderMessages, selectedModelOption?.cost],
   );
 
@@ -4240,9 +4309,7 @@ export function SessionChatContent({
                               conversationOutputTokens={
                                 conversationUsage.outputTokens
                               }
-                              estimatedConversationCost={
-                                conversationEstimatedCost
-                              }
+                              conversationCost={conversationCost}
                               contextLimit={
                                 contextLimit ?? DEFAULT_CONTEXT_LIMIT
                               }
