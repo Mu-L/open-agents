@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { getManagedTemplateAllowedEmailDomainLabel } from "@/lib/managed-template-access";
 
 const DEPLOY_ENV_VARS = [
   "POSTGRES_URL",
@@ -62,6 +63,8 @@ export const metadata: Metadata = {
 };
 
 export default function DeployYourOwnPage() {
+  const allowedEmailDomainLabel = getManagedTemplateAllowedEmailDomainLabel();
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-24 text-foreground">
       <div className="flex max-w-xl flex-col items-center text-center">
@@ -72,9 +75,9 @@ export default function DeployYourOwnPage() {
           Deploy your own
         </h1>
         <p className="mt-4 text-base leading-7 text-muted-foreground">
-          This hosted deployment only supports sign-ins from @vercel.com email
-          addresses. To use the template with your own account, deploy your own
-          copy.
+          This hosted deployment only supports sign-ins from{" "}
+          {allowedEmailDomainLabel}. To use the template with your own account,
+          deploy your own copy.
         </p>
         <Button asChild className="mt-8" size="lg">
           <Link href={DEPLOY_TEMPLATE_URL} rel="noreferrer" target="_blank">

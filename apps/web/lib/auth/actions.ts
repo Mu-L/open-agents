@@ -25,7 +25,9 @@ async function revokeVercelToken(params: {
 }
 
 export async function signOut(): Promise<void> {
-  const session = await getServerSession();
+  const session = await getServerSession({
+    enforceManagedTemplateAccess: false,
+  });
 
   if (session?.user?.id && session.authProvider === "vercel") {
     try {

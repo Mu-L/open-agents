@@ -2,16 +2,30 @@ import type { NextRequest } from "next/server";
 import { hasGitHubAccount as checkGitHubLinked } from "@/lib/github/users";
 import { getInstallationsByUserId } from "@/lib/db/installations";
 import { isUserAdmin, userExists } from "@/lib/db/users";
+import {
+  MANAGED_TEMPLATE_DEPLOY_YOUR_OWN_PATH,
+  shouldRedirectManagedTemplateUser,
+} from "@/lib/managed-template-access";
 import { getSessionFromReq } from "@/lib/session/server";
 import type { SessionUserInfo } from "@/lib/session/types";
 
 const UNAUTHENTICATED: SessionUserInfo = { user: undefined };
 
 export async function GET(req: NextRequest) {
-  const session = await getSessionFromReq(req);
+  const session = await getSessionFromReq(req, {
+    enforceManagedTemplateAccess: false,
+  });
 
   if (!session?.user?.id) {
     return Response.json(UNAUTHENTICATED);
+  }
+
+  if (shouldRedirectManagedTemplateUser(session, req.url)) {
+    return Response.json({
+      user: undefined,
+      managedTemplateAccessDenied: true,
+      accessDeniedRedirect: MANAGED_TEMPLATE_DEPLOY_YOUR_OWN_PATH,
+    });
   }
 
   // run the user-existence check in parallel with the github queries

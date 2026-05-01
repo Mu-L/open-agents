@@ -1,7 +1,16 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/lib/auth/config";
+import {
+  MANAGED_TEMPLATE_DEPLOY_YOUR_OWN_PATH,
+  shouldRedirectManagedTemplateUser,
+} from "@/lib/managed-template-access";
 import type { Session } from "./types";
+
+type GetServerSessionOptions = {
+  enforceManagedTemplateAccess?: boolean;
+};
 
 function extractUsername(user: {
   name?: string | null;
@@ -14,16 +23,19 @@ function extractUsername(user: {
 }
 
 export const getServerSession = cache(
-  async (): Promise<Session | undefined> => {
+  async (
+    options: GetServerSessionOptions = {},
+  ): Promise<Session | undefined> => {
+    const requestHeaders = await headers();
     const baSession = await auth.api.getSession({
-      headers: await headers(),
+      headers: requestHeaders,
     });
 
     if (!baSession?.user) {
       return undefined;
     }
 
-    return {
+    const session: Session = {
       created: baSession.session.createdAt.getTime(),
       authProvider: "vercel",
       user: {
@@ -34,5 +46,17 @@ export const getServerSession = cache(
         name: baSession.user.name ?? undefined,
       },
     };
+
+    if (
+      options.enforceManagedTemplateAccess !== false &&
+      shouldRedirectManagedTemplateUser(
+        session,
+        requestHeaders.get("host") ?? "",
+      )
+    ) {
+      redirect(MANAGED_TEMPLATE_DEPLOY_YOUR_OWN_PATH);
+    }
+
+    return session;
   },
 );
