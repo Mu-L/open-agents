@@ -157,7 +157,7 @@ describe("/api/sessions POST vercel project linking", () => {
 
     expect(response.status).toBe(403);
     expect(body.error).toBe(
-      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Harness with your account.",
+      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Agents with your account.",
     );
     expect(createCalls).toHaveLength(0);
   });
@@ -183,9 +183,9 @@ describe("/api/sessions POST vercel project linking", () => {
     const response = await POST(
       createJsonRequest({
         repoOwner: "Vercel",
-        repoName: "Open-Harness",
+        repoName: "Open-Agents",
         branch: "main",
-        cloneUrl: "https://github.com/Vercel/Open-Harness",
+        cloneUrl: "https://github.com/Vercel/Open-Agents",
         vercelProject,
       }),
     );
@@ -198,13 +198,13 @@ describe("/api/sessions POST vercel project linking", () => {
       {
         userId: "user-1",
         repoOwner: "Vercel",
-        repoName: "Open-Harness",
+        repoName: "Open-Agents",
         project: matchingProjects[0],
       },
     ]);
     expect(createCalls[0]).toMatchObject({
       repoOwner: "Vercel",
-      repoName: "Open-Harness",
+      repoName: "Open-Agents",
       vercelProjectId: "project-1",
       vercelProjectName: "app",
       vercelTeamId: "team-1",

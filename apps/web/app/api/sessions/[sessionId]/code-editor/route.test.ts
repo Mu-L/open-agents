@@ -244,7 +244,7 @@ describe("/api/sessions/[sessionId]/code-editor", () => {
     };
     const { POST } = await routeModulePromise;
     const expectedError =
-      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Harness with your account.";
+      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Agents with your account.";
 
     const response = await POST(
       new Request(

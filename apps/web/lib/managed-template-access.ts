@@ -13,7 +13,7 @@ type ManagedTemplateEmailDomainAccess =
 
 export const MANAGED_TEMPLATE_DEPLOY_YOUR_OWN_PATH = "/deploy-your-own";
 export const MANAGED_TEMPLATE_ACCESS_DENIED_ERROR =
-  "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Harness with your account.";
+  "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Agents with your account.";
 
 function getManagedTemplateEmailDomainAccess(): ManagedTemplateEmailDomainAccess {
   const rawValue = process.env.MANAGED_TEMPLATE_ALLOWED_EMAIL_DOMAINS;

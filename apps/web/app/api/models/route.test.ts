@@ -157,7 +157,7 @@ describe("/api/models context window enrichment", () => {
 
     expect(response.status).toBe(403);
     expect(body.error).toBe(
-      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Harness with your account.",
+      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Agents with your account.",
     );
   });
 

@@ -124,7 +124,7 @@ describe("/api/settings/model-variants", () => {
 
     expect(response.status).toBe(403);
     expect(body.error).toBe(
-      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Harness with your account.",
+      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Agents with your account.",
     );
   });
 
@@ -193,7 +193,7 @@ describe("/api/settings/model-variants", () => {
     expect(response.status).toBe(403);
     const body = (await response.json()) as { error: string };
     expect(body.error).toBe(
-      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Harness with your account.",
+      "This hosted deployment only supports approved email domains. Deploy your own copy to use Open Agents with your account.",
     );
   });
 
