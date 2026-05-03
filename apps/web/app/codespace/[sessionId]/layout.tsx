@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { getSessionByIdCached } from "@/lib/db/sessions-cache";
+import { redirectManagedTemplateUser } from "@/lib/managed-template-page-access";
 import { getServerSession } from "@/lib/session/get-server-session";
 import { CodespaceProvider } from "./codespace-context";
 
@@ -23,6 +24,7 @@ export default async function CodespaceLayout({
   if (!session?.user) {
     redirect("/");
   }
+  await redirectManagedTemplateUser(session);
 
   if (!sessionRecord) {
     notFound();

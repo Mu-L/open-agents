@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { redirectManagedTemplateUser } from "@/lib/managed-template-page-access";
 import { getServerSession } from "@/lib/session/get-server-session";
 
 type SettingsTemplateProps = {
@@ -13,6 +14,7 @@ export default async function SettingsTemplate({
   if (!session?.user) {
     redirect("/");
   }
+  await redirectManagedTemplateUser(session);
 
   return <>{children}</>;
 }

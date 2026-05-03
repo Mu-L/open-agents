@@ -1,15 +1,6 @@
 import type { NextRequest } from "next/server";
-import { redirect } from "next/navigation";
 import type { Session } from "./types";
 import { auth } from "@/lib/auth/config";
-import {
-  MANAGED_TEMPLATE_DEPLOY_YOUR_OWN_PATH,
-  shouldRedirectManagedTemplateUser,
-} from "@/lib/managed-template-access";
-
-type GetSessionFromReqOptions = {
-  enforceManagedTemplateAccess?: boolean;
-};
 
 function extractUsername(user: {
   name?: string | null;
@@ -23,7 +14,6 @@ function extractUsername(user: {
 
 export async function getSessionFromReq(
   req: NextRequest,
-  options: GetSessionFromReqOptions = {},
 ): Promise<Session | undefined> {
   const baSession = await auth.api.getSession({
     headers: req.headers,
@@ -33,7 +23,7 @@ export async function getSessionFromReq(
     return undefined;
   }
 
-  const session: Session = {
+  return {
     created: baSession.session.createdAt.getTime(),
     authProvider: "vercel",
     user: {
@@ -44,13 +34,4 @@ export async function getSessionFromReq(
       name: baSession.user.name ?? undefined,
     },
   };
-
-  if (
-    options.enforceManagedTemplateAccess !== false &&
-    shouldRedirectManagedTemplateUser(session, req.url)
-  ) {
-    redirect(MANAGED_TEMPLATE_DEPLOY_YOUR_OWN_PATH);
-  }
-
-  return session;
 }

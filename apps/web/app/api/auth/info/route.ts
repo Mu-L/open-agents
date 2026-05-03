@@ -12,9 +12,7 @@ import type { SessionUserInfo } from "@/lib/session/types";
 const UNAUTHENTICATED: SessionUserInfo = { user: undefined };
 
 export async function GET(req: NextRequest) {
-  const session = await getSessionFromReq(req, {
-    enforceManagedTemplateAccess: false,
-  });
+  const session = await getSessionFromReq(req);
 
   if (!session?.user?.id) {
     return Response.json(UNAUTHENTICATED);

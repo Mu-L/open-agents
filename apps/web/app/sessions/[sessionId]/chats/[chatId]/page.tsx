@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/sessions";
 import { getSessionByIdCached } from "@/lib/db/sessions-cache";
 import { getUserPreferences } from "@/lib/db/user-preferences";
+import { redirectManagedTemplateUser } from "@/lib/managed-template-page-access";
 import {
   buildSessionChatModelOptions,
   withMissingModelOption,
@@ -99,6 +100,7 @@ export default async function SessionChatPage({
   if (!session?.user) {
     redirect("/");
   }
+  await redirectManagedTemplateUser(session);
 
   // Fetch session record
   const sessionRecord = await sessionRecordPromise;
