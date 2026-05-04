@@ -46,7 +46,7 @@ A few details that matter for understanding the current implementation:
 - Chat requests start a workflow run instead of executing the agent inline.
 - Each agent turn can continue across many persisted workflow steps.
 - Active runs can be resumed by reconnecting to the stream for the existing workflow.
-- Sandboxes use a base snapshot, expose ports `3000`, `5173`, `4321`, and `8000`, and hibernate after inactivity.
+- Sandboxes expose ports `3000`, `5173`, `4321`, and `8000`, can optionally use a configured base snapshot, and hibernate after inactivity.
 - Auto-commit and auto-PR are supported, but they are preference-driven features, not always-on behavior.
 
 ## What is actually required today
@@ -100,7 +100,7 @@ ELEVENLABS_API_KEY=
 
 - `REDIS_URL` / `KV_URL`: optional skills metadata cache (falls back to in-memory when not configured).
 - `VERCEL_PROJECT_PRODUCTION_URL` / `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL`: canonical production URL for metadata and some callback behavior.
-- `VERCEL_SANDBOX_BASE_SNAPSHOT_ID`: override the default sandbox snapshot.
+- `VERCEL_SANDBOX_BASE_SNAPSHOT_ID`: optional base snapshot for fresh sandboxes. If unset, sandboxes start from Vercel's standard Sandbox runtime. Use a snapshot created in/accessible to your own Vercel scope.
 - `ELEVENLABS_API_KEY`: voice transcription.
 
 ## Deploy your own copy on Vercel
@@ -151,7 +151,7 @@ Recommended path: deploy this repo at the repo root on Vercel, then layer on aut
    - make the app public if you want org installs to work cleanly
 
 10. Add the GitHub App env vars and redeploy.
-11. Optionally add Redis/KV and the canonical production URL vars.
+11. Optionally add Redis/KV, the canonical production URL vars, and your own `VERCEL_SANDBOX_BASE_SNAPSHOT_ID` if you want fresh sandboxes to start from a preconfigured image.
 
 ## Local setup
 
