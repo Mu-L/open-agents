@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { DEFAULT_SANDBOX_TIMEOUT_MS } from "@/lib/sandbox/config";
+import {
+  DEFAULT_SANDBOX_TIMEOUT_MS,
+  DEFAULT_SANDBOX_VCPUS,
+} from "@/lib/sandbox/config";
 
 mock.module("server-only", () => ({}));
 
@@ -47,6 +50,8 @@ interface ConnectConfig {
     persistent?: boolean;
     resume?: boolean;
     createIfMissing?: boolean;
+    timeout?: number;
+    vcpus?: number;
   };
 }
 
@@ -286,6 +291,8 @@ describe("/api/sandbox lifecycle kicks", () => {
         sandboxName: "session_session-1",
       },
       options: {
+        timeout: DEFAULT_SANDBOX_TIMEOUT_MS,
+        vcpus: DEFAULT_SANDBOX_VCPUS,
         persistent: true,
         resume: true,
         createIfMissing: true,

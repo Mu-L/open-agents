@@ -3,12 +3,26 @@
  * All timeout values are in milliseconds.
  */
 
+import { isHobbyResourceProfile } from "@/lib/deployment/resource-profile";
+
 /** SDK safety buffer reserved for sandbox before-stop hooks (30 seconds) */
 const VERCEL_SANDBOX_TIMEOUT_BUFFER_MS = 30 * 1000;
 
-/** Default timeout for new cloud sandboxes (5 hours minus hook buffer) */
-export const DEFAULT_SANDBOX_TIMEOUT_MS =
+/** Standard timeout for new cloud sandboxes (5 hours minus hook buffer) */
+const STANDARD_SANDBOX_TIMEOUT_MS =
   5 * 60 * 60 * 1000 - VERCEL_SANDBOX_TIMEOUT_BUFFER_MS;
+
+/** Hobby-compatible timeout for new cloud sandboxes (40 minutes minus hook buffer) */
+const HOBBY_SANDBOX_TIMEOUT_MS =
+  40 * 60 * 1000 - VERCEL_SANDBOX_TIMEOUT_BUFFER_MS;
+
+/** Default timeout for new cloud sandboxes */
+export const DEFAULT_SANDBOX_TIMEOUT_MS = isHobbyResourceProfile()
+  ? HOBBY_SANDBOX_TIMEOUT_MS
+  : STANDARD_SANDBOX_TIMEOUT_MS;
+
+/** Default vCPU count for new cloud sandboxes */
+export const DEFAULT_SANDBOX_VCPUS = isHobbyResourceProfile() ? 1 : 4;
 
 /** Manual extension duration for explicit fallback flows (20 minutes) */
 export const EXTEND_TIMEOUT_DURATION_MS = 20 * 60 * 1000;
